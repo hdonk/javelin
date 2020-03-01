@@ -9,6 +9,8 @@
 using namespace winrt;
 using namespace Windows::Devices::Enumeration;
 using namespace Windows::Foundation;
+using namespace Windows::Devices::Bluetooth;
+using namespace Windows::Devices::Bluetooth::GenericAttributeProfile;
 
 class Discovery
 {
@@ -133,7 +135,7 @@ class Discovery
 
         jobjectArray getJavaBLEDeviceList(JNIEnv* ap_jenv)
         { 
-            std::map<std::wstring, Windows::Devices::Enumeration::DeviceInformation*>::iterator l_begin, l_end, l_ptr;
+            std::map<std::wstring, Windows::Devices::Enumeration::DeviceInformation*>::iterator l_end, l_ptr;
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
 
             jstring l_str;
@@ -143,7 +145,7 @@ class Discovery
             l_ids = ap_jenv->NewObjectArray(l_len, ap_jenv->FindClass("java/lang/String"), 0);
 
             int l_count = 0;
-            for (l_begin = m_id_to_di.begin(), l_end = m_id_to_di.end(), l_ptr=l_begin; l_ptr!=l_end; ++l_ptr)
+            for (l_end = m_id_to_di.end(), l_ptr= m_id_to_di.begin(); l_ptr!=l_end; ++l_ptr)
             {
                 std::wstring l_id( (l_ptr->second)->Id().c_str());
                 l_str = ap_jenv->NewString((jchar *)l_id.c_str(), (jsize)l_id.length());
@@ -153,6 +155,51 @@ class Discovery
             return l_ids;
         }
 
+        IAsyncOperation<bool> GetBLEDevice(Windows::Devices::Bluetooth::BluetoothLEDevice& ar_bled, hstring &ar_id)
+        {
+            Windows::Devices::Bluetooth::BluetoothLEDevice l_bluetoothLeDevice = co_await BluetoothLEDevice::FromIdAsync(ar_id);
+            ar_bled = l_bluetoothLeDevice;
+
+            co_return true;
+        }
+
+        IAsyncOperation<bool> GetGattServices(Windows::Devices::Bluetooth::BluetoothLEDevice& ar_bled)
+        {
+            GattDeviceServicesResult l_result = co_await ar_bled.GetGattServicesAsync(BluetoothCacheMode::Uncached);
+            if (l_result.Status() != GattCommunicationStatus.Success) co_return false;
+            else co_return true;
+        }
+
+        jobjectArray getJavaBLEDeviceServices(JNIEnv* ap_jenv, jstring a_id)
+        {
+            std::map<std::wstring, Windows::Devices::Enumeration::DeviceInformation*>::iterator l_end, l_ptr;
+            concurrency::critical_section::scoped_lock l_lock(m_lock_std);
+
+            std::wstring l_id(a_id.c_str());
+            Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_di[l_id];
+            if (!lp_di) return NULL;
+
+            Windows::Devices::Bluetooth::BluetoothLEDevice l_bluetoothLeDevice{ nullptr };
+            
+            GetBLEDevice(l_bluetoothLeDevice, lp_di->Id());
+            GetGattServices(l_bluetoothLeDevice);
+
+            jstring l_str;
+            jobjectArray l_ids = 0;
+            jsize l_len = (jsize)m_id_to_di.size();
+
+            l_ids = ap_jenv->NewObjectArray(l_len, ap_jenv->FindClass("java/lang/String"), 0);
+
+            int l_count = 0;
+            for (l_end = m_id_to_di.end(), l_ptr = m_id_to_di.begin(); l_ptr != l_end; ++l_ptr)
+            {
+                std::wstring l_id((l_ptr->second)->Id().c_str());
+                l_str = ap_jenv->NewString((jchar*)l_id.c_str(), (jsize)l_id.length());
+                ap_jenv->SetObjectArrayElement(l_ids, l_count++, l_str);
+            }
+
+            return l_ids;
+        }
 
         static void DeviceWatcher_Added(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformation deviceInfo)
         {
@@ -226,7 +273,8 @@ JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDevices
 JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDeviceServices
 (JNIEnv *ap_jenv, jclass, jstring a_id)
 {
-    return NULL;
+    Discovery* lp_dc = Discovery::getDiscovery();
+    return lp_dc->getJavaBLEDeviceServices(ap_jenv, a_id);
 }
 
 JNIEXPORT jstring JNICALL Java_javelin_1test_javelin_getBLEDeviceName
