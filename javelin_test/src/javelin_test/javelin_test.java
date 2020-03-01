@@ -5,7 +5,20 @@ public class javelin_test {
 	public javelin_test()
 	{
 		System.out.println("Hello");
-		javelin.listBLEDevices();
+		String l_devices[] = javelin.listBLEDevices();
+		System.out.println("Back in Java:");
+		if(l_devices != null)
+		{
+			System.out.println("Devices: ");
+			for(String l_device: l_devices)
+			{
+				System.out.println(" "+l_device);
+			}
+		}
+		else
+		{
+			System.out.println("No devices returned");
+		}
 		System.out.println("Bye");
 	}
 	
@@ -14,7 +27,10 @@ public class javelin_test {
 		System.loadLibrary("msvcp140d_app");
 		System.loadLibrary("vcruntime140_1d_app");
 		System.loadLibrary("VCRUNTIME140D_APP");
+		System.loadLibrary("CONCRT140D_APP");
 		System.loadLibrary("ucrtbased");
+		System.loadLibrary("api-ms-win-core-synch-l1-2-0");
+		System.loadLibrary("api-ms-win-core-synch-l1-1-0");
 		System.loadLibrary("api-ms-win-core-processthreads-l1-1-0");
 		System.loadLibrary("api-ms-win-core-debug-l1-1-0");
 		System.loadLibrary("api-ms-win-core-errorhandling-l1-1-0");
@@ -26,6 +42,7 @@ public class javelin_test {
 		System.loadLibrary("api-ms-win-core-heap-l1-1-0");
 		System.loadLibrary("api-ms-win-core-memory-l1-1-0");
 		System.loadLibrary("api-ms-win-core-libraryloader-l1-2-0");
+		System.loadLibrary("OLEAUT32");
 		System.loadLibrary("javelin");
 		m_jt = new javelin_test();
 	}

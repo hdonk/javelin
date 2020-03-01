@@ -10,9 +10,9 @@ extern "C" {
 /*
  * Class:     javelin_test_javelin
  * Method:    listBLEDevices
- * Signature: ()V
+ * Signature: ()[Ljava/lang/String;
  */
-JNIEXPORT void JNICALL Java_javelin_1test_javelin_listBLEDevices
+JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDevices
   (JNIEnv *, jclass);
 
 #ifdef __cplusplus
