@@ -13,6 +13,8 @@ public class javelin_test {
 			for(String l_device: l_devices)
 			{
 				System.out.println(" "+l_device);
+				String l_name = javelin.getBLEDeviceName(l_device);
+				System.out.println("  Name: "+l_name);
 			}
 		}
 		else

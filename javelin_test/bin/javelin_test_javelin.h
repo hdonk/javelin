@@ -15,6 +15,22 @@ extern "C" {
 JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDevices
   (JNIEnv *, jclass);
 
+/*
+ * Class:     javelin_test_javelin
+ * Method:    listBLEDeviceServices
+ * Signature: (Ljava/lang/String;)[Ljava/lang/String;
+ */
+JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDeviceServices
+  (JNIEnv *, jclass, jstring);
+
+/*
+ * Class:     javelin_test_javelin
+ * Method:    getBLEDeviceName
+ * Signature: (Ljava/lang/String;)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_javelin_1test_javelin_getBLEDeviceName
+  (JNIEnv *, jclass, jstring);
+
 #ifdef __cplusplus
 }
 #endif

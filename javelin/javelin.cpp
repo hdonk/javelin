@@ -39,7 +39,6 @@ class Discovery
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
             m_id_to_di[ar_id] = ::new Windows::Devices::Enumeration::DeviceInformation(ar_di);
             Windows::Devices::Enumeration::DeviceInformation *lp_di = m_id_to_di[ar_id];
-            std::wcout << __func__ << ":" << std::endl;
             display_di(lp_di);
         }
 
@@ -48,7 +47,6 @@ class Discovery
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
             m_id_to_di[ar_id]->Update(ar_diu);
             Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_di[ar_id];
-            std::wcout << __func__ << ":" << std::endl;
             display_di(lp_di);
         }
 
@@ -56,10 +54,18 @@ class Discovery
         {
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
             Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_di[ar_id];
-            std::wcout << __func__ << ":" << std::endl;
             display_di(lp_di);
             ::delete m_id_to_di[ar_id];
             m_id_to_di.erase(ar_id);
+        }
+
+        std::wstring getName(std::wstring& ar_id)
+        {
+            concurrency::critical_section::scoped_lock l_lock(m_lock_std);
+            Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_di[ar_id];
+            if (!lp_di) return std::wstring();
+            std::wstring l_name(lp_di->Name().c_str());
+            return l_name;
         }
 
         static void display_di(Windows::Devices::Enumeration::DeviceInformation* ap_di)
@@ -75,16 +81,13 @@ class Discovery
             clear_discovery_complete();
 
             auto requestedProperties = single_threaded_vector<hstring>({ L"System.Devices.Aep.DeviceAddress", L"System.Devices.Aep.IsConnected", L"System.Devices.Aep.Bluetooth.Le.IsConnectable" });
-            std::cout << "1" << std::endl;
             // BT_Code: Example showing paired and non-paired in a single query.
             hstring aqsAllBluetoothLEDevices = L"(System.Devices.Aep.ProtocolId:=\"{bb7bb05e-5972-42b5-94fc-76eaa7084d49}\")";
-            std::cout << "2" << std::endl;
             m_deviceWatcher =
                 Windows::Devices::Enumeration::DeviceInformation::CreateWatcher(
                     aqsAllBluetoothLEDevices,
                     requestedProperties,
                     DeviceInformationKind::AssociationEndpoint);
-            std::cout << "3" << std::endl;
             // Register event handlers before starting the watcher.
             m_deviceWatcherAddedToken = m_deviceWatcher.Added(&Discovery::DeviceWatcher_Added);
             m_deviceWatcherUpdatedToken = m_deviceWatcher.Updated(&Discovery::DeviceWatcher_Updated);
@@ -128,7 +131,7 @@ class Discovery
             return sm_dc;
         }
 
-        jobjectArray getJavaBLEDeviceList(JNIEnv* a_jenv)
+        jobjectArray getJavaBLEDeviceList(JNIEnv* ap_jenv)
         { 
             std::map<std::wstring, Windows::Devices::Enumeration::DeviceInformation*>::iterator l_begin, l_end, l_ptr;
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
@@ -137,14 +140,14 @@ class Discovery
             jobjectArray l_ids = 0;
             jsize l_len = (jsize)m_id_to_di.size();
 
-            l_ids = a_jenv->NewObjectArray(l_len, a_jenv->FindClass("java/lang/String"), 0);
+            l_ids = ap_jenv->NewObjectArray(l_len, ap_jenv->FindClass("java/lang/String"), 0);
 
             int l_count = 0;
             for (l_begin = m_id_to_di.begin(), l_end = m_id_to_di.end(), l_ptr=l_begin; l_ptr!=l_end; ++l_ptr)
             {
                 std::wstring l_id( (l_ptr->second)->Id().c_str());
-                l_str = a_jenv->NewString((jchar *)l_id.c_str(), (jsize)l_id.length());
-                a_jenv->SetObjectArrayElement(l_ids, l_count++, l_str);
+                l_str = ap_jenv->NewString((jchar *)l_id.c_str(), (jsize)l_id.length());
+                ap_jenv->SetObjectArrayElement(l_ids, l_count++, l_str);
             }
 
             return l_ids;
@@ -188,24 +191,52 @@ class Discovery
 
 Discovery *Discovery::sm_dc = NULL;
 
+std::wstring Java_To_WStr(JNIEnv* env, jstring string)
+{
+    std::wstring value;
+
+    const jchar* raw = env->GetStringChars(string, 0);
+    jsize len = env->GetStringLength(string);
+
+    value.assign(raw, raw + len);
+
+    env->ReleaseStringChars(string, raw);
+
+    return value;
+}
+
 JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDevices
-(JNIEnv *a_jenv, jclass)
+(JNIEnv *ap_jenv, jclass)
 {
 	std::cout << "Hello from JNI C++" << std::endl;
 
     Discovery *lp_dc = Discovery::getDiscovery();
     lp_dc->start_discovery();
 
-    std::cout << "5 - Waiting" << std::endl;
     if (lp_dc->wait_for_discovery_complete())
     {
-        std::cout << "6 - Finished" << std::endl;
-
-        return lp_dc->getJavaBLEDeviceList(a_jenv);
+        return lp_dc->getJavaBLEDeviceList(ap_jenv);
     }
     else
     {
-        std::cout << "7 - Timed out" << std::endl;
         return NULL;
     }
+}
+
+JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDeviceServices
+(JNIEnv *ap_jenv, jclass, jstring a_id)
+{
+    return NULL;
+}
+
+JNIEXPORT jstring JNICALL Java_javelin_1test_javelin_getBLEDeviceName
+(JNIEnv * ap_jenv, jclass, jstring a_id)
+{
+    std::wstring l_id = Java_To_WStr(ap_jenv, a_id);
+    std::wstring l_name = Discovery::getDiscovery()->getName(l_id);
+
+    jstring l_str;
+    l_str = ap_jenv->NewString((jchar*)l_name.c_str(), (jsize)l_name.length());
+
+    return l_str;
 }
