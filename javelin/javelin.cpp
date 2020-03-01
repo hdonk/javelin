@@ -35,16 +35,24 @@ class Discovery
         {
             m_id_to_di[ar_id] = ::new Windows::Devices::Enumeration::DeviceInformation(ar_di);
             Windows::Devices::Enumeration::DeviceInformation *lp_di = m_id_to_di[ar_id];
-            std::wstring l_name(lp_di->Name().c_str());
-            std::wcout << __func__ << " name " << l_name << std::endl;
+            std::wcout << __func__ << ":" << std::endl;
+            display_di(lp_di);
         }
 
         void update_di(std::wstring& ar_id, Windows::Devices::Enumeration::DeviceInformationUpdate ar_diu)
         {
             m_id_to_di[ar_id]->Update(ar_diu);
             Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_di[ar_id];
-            std::wstring l_name(lp_di->Name().c_str());
-            std::wcout << __func__ << " name " << l_name << std::endl;
+            std::wcout << __func__ << ":" << std::endl;
+            display_di(lp_di);
+        }
+
+        static void display_di(Windows::Devices::Enumeration::DeviceInformation* ap_di)
+        {
+            std::wstring l_id(ap_di->Id().c_str());
+            std::wstring l_name(ap_di->Name().c_str());
+            std::wcout << "Id: " << l_id << std::endl;
+            std::wcout << "Name: " << l_name << std::endl;
         }
 
         static Discovery* getDiscovery()
