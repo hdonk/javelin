@@ -6,6 +6,7 @@ public class javelin_test {
 	{
 		System.out.println("Hello");
 		javelin.listBLEDevices();
+		System.out.println("Bye");
 	}
 	
 	public static void main(String[] args)

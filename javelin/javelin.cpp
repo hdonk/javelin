@@ -20,35 +20,81 @@ event_token deviceWatcherStoppedToken;
 
 class Discovery
 {
+        static Discovery* sm_dc;
+
+        std::map<std::wstring, Windows::Devices::Enumeration::DeviceInformation *> m_id_to_di;
+
     public:
-        fire_and_forget DeviceWatcher_Added(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformation deviceInfo)
+        Discovery()
+            : m_id_to_di()
         {
-            std::wcout << "In " << __func__ << std::endl;
+
         };
-       fire_and_forget DeviceWatcher_Updated(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformationUpdate deviceInfoUpdate)
+
+        void add_di(std::wstring &ar_id, Windows::Devices::Enumeration::DeviceInformation ar_di)
+        {
+            m_id_to_di[ar_id] = ::new Windows::Devices::Enumeration::DeviceInformation(ar_di);
+            Windows::Devices::Enumeration::DeviceInformation *lp_di = m_id_to_di[ar_id];
+            std::wstring l_name(lp_di->Name().c_str());
+            std::wcout << __func__ << " name " << l_name << std::endl;
+        }
+
+        void update_di(std::wstring& ar_id, Windows::Devices::Enumeration::DeviceInformationUpdate ar_diu)
+        {
+            m_id_to_di[ar_id]->Update(ar_diu);
+            Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_di[ar_id];
+            std::wstring l_name(lp_di->Name().c_str());
+            std::wcout << __func__ << " name " << l_name << std::endl;
+        }
+
+        static Discovery* getDiscovery()
+        {
+            if (!sm_dc)
+            {
+                sm_dc = new Discovery();
+            }
+            return sm_dc;
+        }
+
+        static void DeviceWatcher_Added(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformation deviceInfo)
         {
             std::wcout << "In " << __func__ << std::endl;
+            if (!sm_dc) return;
+            std::wstring l_id(deviceInfo.Id().c_str());
+            sm_dc->add_di(l_id, deviceInfo);
         };
-        fire_and_forget DeviceWatcher_Removed(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformationUpdate deviceInfoUpdate)
+        static void DeviceWatcher_Updated(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformationUpdate deviceInfoUpdate)
         {
             std::wcout << "In " << __func__ << std::endl;
+            if (!sm_dc) return;
+            std::wstring l_id(deviceInfoUpdate.Id().c_str());
+            sm_dc->update_di(l_id, deviceInfoUpdate);
         };
-        fire_and_forget DeviceWatcher_EnumerationCompleted(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Foundation::IInspectable const&)
+        static void DeviceWatcher_Removed(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformationUpdate deviceInfoUpdate)
         {
             std::wcout << "In " << __func__ << std::endl;
+            if (!sm_dc) return;
         };
-        fire_and_forget DeviceWatcher_Stopped(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Foundation::IInspectable const&)
+        static void DeviceWatcher_EnumerationCompleted(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Foundation::IInspectable const&)
         {
             std::wcout << "In " << __func__ << std::endl;
+            if (!sm_dc) return;
+        };
+        static void DeviceWatcher_Stopped(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Foundation::IInspectable const&)
+        {
+            std::wcout << "In " << __func__ << std::endl;
+            if (!sm_dc) return;
         };
 };
 
-//Discovery g_dc;
+Discovery *Discovery::sm_dc = NULL;
 
 JNIEXPORT void JNICALL Java_javelin_1test_javelin_listBLEDevices
 (JNIEnv*, jclass)
 {
 	std::cout << "Hello from JNI C++" << std::endl;
+
+    Discovery *lp_dc = Discovery::getDiscovery();
 
     auto requestedProperties = single_threaded_vector<hstring>({ L"System.Devices.Aep.DeviceAddress", L"System.Devices.Aep.IsConnected", L"System.Devices.Aep.Bluetooth.Le.IsConnectable" });
     std::cout << "1" << std::endl;
@@ -63,10 +109,10 @@ JNIEXPORT void JNICALL Java_javelin_1test_javelin_listBLEDevices
     std::cout << "3" << std::endl;
     // Register event handlers before starting the watcher.
     deviceWatcherAddedToken = deviceWatcher.Added(&Discovery::DeviceWatcher_Added );
- /*   deviceWatcherUpdatedToken = deviceWatcher.Updated(&Discovery::DeviceWatcher_Updated );
+    deviceWatcherUpdatedToken = deviceWatcher.Updated(&Discovery::DeviceWatcher_Updated );
     deviceWatcherRemovedToken = deviceWatcher.Removed(&Discovery::DeviceWatcher_Removed );
     deviceWatcherEnumerationCompletedToken = deviceWatcher.EnumerationCompleted(&Discovery::DeviceWatcher_EnumerationCompleted );
-    deviceWatcherStoppedToken = deviceWatcher.Stopped(&Discovery::DeviceWatcher_Stopped );*/
+    deviceWatcherStoppedToken = deviceWatcher.Stopped(&Discovery::DeviceWatcher_Stopped );
     
     // Start over with an empty collection.
     m_knownDevices.Clear();
@@ -78,8 +124,8 @@ JNIEXPORT void JNICALL Java_javelin_1test_javelin_listBLEDevices
     // use the BluetoothLEAdvertisementWatcher runtime class. See the BluetoothAdvertisement
     // sample for an example.
     deviceWatcher.Start();
-    std::cout << "5" << std::endl;
-    Sleep(40000);
-    std::cout << "6" << std::endl;
+    std::cout << "5 - Sleeping" << std::endl;
+    Sleep(10000);
+    std::cout << "6 - Slept" << std::endl;
 
 }
