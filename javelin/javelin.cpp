@@ -1,7 +1,7 @@
 ﻿#include "pch.h"
 #include "javelin.h"
 
-#include "../javelin_test/bin/javelin_test_javelin.h"
+#include <../javelin_test/bin/javelin_test_javelin.h>
 
 #include <iostream>
 
@@ -18,6 +18,32 @@ event_token deviceWatcherRemovedToken;
 event_token deviceWatcherEnumerationCompletedToken;
 event_token deviceWatcherStoppedToken;
 
+class Discovery
+{
+    public:
+        fire_and_forget DeviceWatcher_Added(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformation deviceInfo)
+        {
+            std::wcout << "In " << __func__ << std::endl;
+        };
+       fire_and_forget DeviceWatcher_Updated(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformationUpdate deviceInfoUpdate)
+        {
+            std::wcout << "In " << __func__ << std::endl;
+        };
+        fire_and_forget DeviceWatcher_Removed(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformationUpdate deviceInfoUpdate)
+        {
+            std::wcout << "In " << __func__ << std::endl;
+        };
+        fire_and_forget DeviceWatcher_EnumerationCompleted(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Foundation::IInspectable const&)
+        {
+            std::wcout << "In " << __func__ << std::endl;
+        };
+        fire_and_forget DeviceWatcher_Stopped(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Foundation::IInspectable const&)
+        {
+            std::wcout << "In " << __func__ << std::endl;
+        };
+};
+
+//Discovery g_dc;
 
 JNIEXPORT void JNICALL Java_javelin_1test_javelin_listBLEDevices
 (JNIEnv*, jclass)
@@ -25,25 +51,26 @@ JNIEXPORT void JNICALL Java_javelin_1test_javelin_listBLEDevices
 	std::cout << "Hello from JNI C++" << std::endl;
 
     auto requestedProperties = single_threaded_vector<hstring>({ L"System.Devices.Aep.DeviceAddress", L"System.Devices.Aep.IsConnected", L"System.Devices.Aep.Bluetooth.Le.IsConnectable" });
-
+    std::cout << "1" << std::endl;
     // BT_Code: Example showing paired and non-paired in a single query.
     hstring aqsAllBluetoothLEDevices = L"(System.Devices.Aep.ProtocolId:=\"{bb7bb05e-5972-42b5-94fc-76eaa7084d49}\")";
-
+    std::cout << "2" << std::endl;
     deviceWatcher =
         Windows::Devices::Enumeration::DeviceInformation::CreateWatcher(
             aqsAllBluetoothLEDevices,
             requestedProperties,
             DeviceInformationKind::AssociationEndpoint);
-
+    std::cout << "3" << std::endl;
     // Register event handlers before starting the watcher.
-/*    deviceWatcherAddedToken = deviceWatcher.Added({ get_weak(), &Scenario1_Discovery::DeviceWatcher_Added });
-    deviceWatcherUpdatedToken = deviceWatcher.Updated({ get_weak(), &Scenario1_Discovery::DeviceWatcher_Updated });
-    deviceWatcherRemovedToken = deviceWatcher.Removed({ get_weak(), &Scenario1_Discovery::DeviceWatcher_Removed });
-    deviceWatcherEnumerationCompletedToken = deviceWatcher.EnumerationCompleted({ get_weak(), &Scenario1_Discovery::DeviceWatcher_EnumerationCompleted });
-    deviceWatcherStoppedToken = deviceWatcher.Stopped({ get_weak(), &Scenario1_Discovery::DeviceWatcher_Stopped });
-    */
+    deviceWatcherAddedToken = deviceWatcher.Added(&Discovery::DeviceWatcher_Added );
+ /*   deviceWatcherUpdatedToken = deviceWatcher.Updated(&Discovery::DeviceWatcher_Updated );
+    deviceWatcherRemovedToken = deviceWatcher.Removed(&Discovery::DeviceWatcher_Removed );
+    deviceWatcherEnumerationCompletedToken = deviceWatcher.EnumerationCompleted(&Discovery::DeviceWatcher_EnumerationCompleted );
+    deviceWatcherStoppedToken = deviceWatcher.Stopped(&Discovery::DeviceWatcher_Stopped );*/
+    
     // Start over with an empty collection.
     m_knownDevices.Clear();
+    std::cout << "4" << std::endl;
 
     // Start the watcher. Active enumeration is limited to approximately 30 seconds.
     // This limits power usage and reduces interference with other Bluetooth activities.
@@ -51,5 +78,8 @@ JNIEXPORT void JNICALL Java_javelin_1test_javelin_listBLEDevices
     // use the BluetoothLEAdvertisementWatcher runtime class. See the BluetoothAdvertisement
     // sample for an example.
     deviceWatcher.Start();
+    std::cout << "5" << std::endl;
+    Sleep(40000);
+    std::cout << "6" << std::endl;
 
 }
