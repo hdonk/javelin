@@ -15,6 +15,14 @@ public class javelin_test {
 				System.out.println(" "+l_device);
 				String l_name = javelin.getBLEDeviceName(l_device);
 				System.out.println("  Name: "+l_name);
+				String l_services[] = javelin.listBLEDeviceServices(l_device);
+				if(l_services!=null)
+				{
+					for(String l_service: l_services)
+					{
+						System.out.println("   Service: "+l_service);
+					}
+				}
 			}
 		}
 		else

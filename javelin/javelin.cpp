@@ -4,13 +4,16 @@
 #include <../javelin_test/bin/javelin_test_javelin.h>
 
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 #include <concrt.h>
-
 using namespace winrt;
 using namespace Windows::Devices::Enumeration;
 using namespace Windows::Foundation;
 using namespace Windows::Devices::Bluetooth;
 using namespace Windows::Devices::Bluetooth::GenericAttributeProfile;
+using namespace Windows::Foundation::Collections;
+//using namespace Windows::Foundation::Collections::IVectorView;
 
 // Utility Functions
 std::wstring Java_To_WStr(JNIEnv* env, jstring string)
@@ -43,11 +46,14 @@ class Discovery
         event_token m_deviceWatcherEnumerationCompletedToken;
         event_token m_deviceWatcherStoppedToken;
 
+        GattDeviceServicesResult m_temp_gdsr;
+
     public:
         Discovery()
             : m_lock_std()
             , m_id_to_di()
             , m_discovery_complete()
+            , m_temp_gdsr{nullptr}
         {
             m_discovery_complete.reset();
         };
@@ -88,10 +94,11 @@ class Discovery
 
         static void display_di(Windows::Devices::Enumeration::DeviceInformation* ap_di)
         {
-            std::wstring l_id(ap_di->Id().c_str());
+            return;
+/*            std::wstring l_id(ap_di->Id().c_str());
             std::wstring l_name(ap_di->Name().c_str());
             std::wcout << "Id: " << l_id << std::endl;
-            std::wcout << "Name: " << l_name << std::endl;
+            std::wcout << "Name: " << l_name << std::endl;*/
         }
 
         void start_discovery()
@@ -171,24 +178,26 @@ class Discovery
             return l_ids;
         }
 
-        IAsyncOperation<bool> GetBLEDevice(Windows::Devices::Bluetooth::BluetoothLEDevice& ar_bled, hstring &ar_id)
+        IAsyncOperation<bool> GetBLEDevice(Windows::Devices::Bluetooth::BluetoothLEDevice& ar_bled, hstring &ar_id, concurrency::event& ar_wait)
         {
             Windows::Devices::Bluetooth::BluetoothLEDevice l_bluetoothLeDevice = co_await BluetoothLEDevice::FromIdAsync(ar_id);
             ar_bled = l_bluetoothLeDevice;
-
+            ar_wait.set();
             co_return true;
         }
 
-        IAsyncOperation<bool> GetGattServices(Windows::Devices::Bluetooth::BluetoothLEDevice& ar_bled)
+        IAsyncOperation<bool> GetGattServices(Windows::Devices::Bluetooth::BluetoothLEDevice& ar_bled, concurrency::event& ar_wait)
         {
-            GattDeviceServicesResult l_result = co_await ar_bled.GetGattServicesAsync(BluetoothCacheMode::Uncached);
-            if (l_result.Status() != GattCommunicationStatus::Success) co_return false;
+            std::cout << "Wait for Gatt Services" << std::endl;
+            m_temp_gdsr = co_await ar_bled.GetGattServicesAsync(BluetoothCacheMode::Uncached);
+            std::cout << "Got Gatt Services" << std::endl;
+            ar_wait.set();
+            if (m_temp_gdsr.Status() != GattCommunicationStatus::Success) co_return false;
             else co_return true;
         }
 
         jobjectArray getJavaBLEDeviceServices(JNIEnv* ap_jenv, jstring a_id)
         {
-            std::map<std::wstring, Windows::Devices::Enumeration::DeviceInformation*>::iterator l_end, l_ptr;
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
 
             std::wstring l_id = Java_To_WStr(ap_jenv, a_id);
@@ -196,25 +205,59 @@ class Discovery
             if (!lp_di) return NULL;
 
             Windows::Devices::Bluetooth::BluetoothLEDevice l_bluetoothLeDevice{ nullptr };
-            
-            GetBLEDevice(l_bluetoothLeDevice, lp_di->Id());
-            GetGattServices(l_bluetoothLeDevice);
+
+            concurrency::event l_wait;
+            IAsyncOperation<bool> l_ret = GetBLEDevice(l_bluetoothLeDevice, lp_di->Id(), l_wait);
+            if (l_wait.wait(20000) != 0) {
+                std::cout << "Failed to get BLE dev" << std::endl;
+                return NULL;
+            }
+            l_wait.reset();
+            std::cout << "1" << std::endl;
+            //if (l_ret.get() != true) return NULL;
+            l_ret = GetGattServices(l_bluetoothLeDevice, l_wait);
+            if (l_wait.wait(40000) != 0) {
+                std::cout << "Failed to get BLE services" << std::endl;
+                return NULL;
+            }
+            std::cout << "2" << std::endl;
+            //if (l_ret.get() != true) return NULL;
 
             jstring l_str;
-            jobjectArray l_ids = 0;
-            jsize l_len = (jsize)m_id_to_di.size();
+            jobjectArray l_svcs = 0;
+            jsize l_len = (jsize)m_temp_gdsr.Services().Size();
 
-            l_ids = ap_jenv->NewObjectArray(l_len, ap_jenv->FindClass("java/lang/String"), 0);
+            l_svcs = ap_jenv->NewObjectArray(l_len, ap_jenv->FindClass("java/lang/String"), 0);
 
-            int l_count = 0;
-            for (l_end = m_id_to_di.end(), l_ptr = m_id_to_di.begin(); l_ptr != l_end; ++l_ptr)
+            for (unsigned int i=0; i< m_temp_gdsr.Services().Size();++i)
             {
-                std::wstring l_id((l_ptr->second)->Id().c_str());
-                l_str = ap_jenv->NewString((jchar*)l_id.c_str(), (jsize)l_id.length());
-                ap_jenv->SetObjectArrayElement(l_ids, l_count++, l_str);
+                std::wstringstream l_uuid;
+                GattDeviceService& lr_gds = m_temp_gdsr.Services().GetAt(i);
+                l_uuid.fill('0');
+                l_uuid << std::uppercase << std::hex
+                    << std::setw(8)
+                    << lr_gds.Uuid().Data1
+                    << '-' << std::setw(4) << lr_gds.Uuid().Data2
+                    << '-' << std::setw(4) << lr_gds.Uuid().Data3
+                    << '-' << std::setw(2) << (unsigned int)(lr_gds.Uuid().Data4[0])
+                    << std::setw(2)
+                    << (unsigned int)(lr_gds.Uuid().Data4[1])
+                    << '-' << std::setw(2) << (unsigned int)(lr_gds.Uuid().Data4[2])
+                    << std::setw(2)
+                    << (unsigned int)(lr_gds.Uuid().Data4[3])
+                    << std::setw(2)
+                    << (unsigned int)(lr_gds.Uuid().Data4[4])
+                    << std::setw(2)
+                    << (unsigned int)(lr_gds.Uuid().Data4[5])
+                    << std::setw(2)
+                    << (unsigned int)(lr_gds.Uuid().Data4[6])
+                    << std::setw(2)
+                    << (unsigned int)(lr_gds.Uuid().Data4[7]);
+                l_str = ap_jenv->NewString((jchar*)l_uuid.str().c_str(), (jsize)l_uuid.str().length());
+                ap_jenv->SetObjectArrayElement(l_svcs, i, l_str);
             }
 
-            return l_ids;
+            return l_svcs;
         }
 
         static void DeviceWatcher_Added(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformation deviceInfo)
