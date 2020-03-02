@@ -7,7 +7,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="javelin.cpp" />
     <ClCompile Include="pch.cpp" />
   </ItemGroup>
