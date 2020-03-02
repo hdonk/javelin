@@ -188,9 +188,7 @@ class Discovery
 
         IAsyncOperation<bool> GetGattServices(Windows::Devices::Bluetooth::BluetoothLEDevice& ar_bled, concurrency::event& ar_wait)
         {
-            std::cout << "Wait for Gatt Services" << std::endl;
             m_temp_gdsr = co_await ar_bled.GetGattServicesAsync(BluetoothCacheMode::Uncached);
-            std::cout << "Got Gatt Services" << std::endl;
             ar_wait.set();
             if (m_temp_gdsr.Status() != GattCommunicationStatus::Success) co_return false;
             else co_return true;
@@ -213,15 +211,13 @@ class Discovery
                 return NULL;
             }
             l_wait.reset();
-            std::cout << "1" << std::endl;
-            //if (l_ret.get() != true) return NULL;
+            if (l_ret.get() != true) return NULL;
             l_ret = GetGattServices(l_bluetoothLeDevice, l_wait);
             if (l_wait.wait(40000) != 0) {
                 std::cout << "Failed to get BLE services" << std::endl;
                 return NULL;
             }
-            std::cout << "2" << std::endl;
-            //if (l_ret.get() != true) return NULL;
+            if (l_ret.get() != true) return NULL;
 
             jstring l_str;
             jobjectArray l_svcs = 0;
