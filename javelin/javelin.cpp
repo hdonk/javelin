@@ -13,6 +13,7 @@ using namespace Windows::Foundation;
 using namespace Windows::Devices::Bluetooth;
 using namespace Windows::Devices::Bluetooth::GenericAttributeProfile;
 using namespace Windows::Foundation::Collections;
+using namespace Windows::Storage::Streams;
 //using namespace Windows::Foundation::Collections::IVectorView;
 
 // Utility Functions
@@ -30,27 +31,65 @@ std::wstring Java_To_WStr(JNIEnv* env, jstring string)
     return value;
 }
 
+void guidTowstring(guid& ar_guid, std::wstring& ar_wstring)
+{
+    std::wstringstream l_uuid;
+
+    l_uuid.fill('0');
+    l_uuid << std::uppercase << std::hex
+        << std::setw(8)
+        << ar_guid.Data1
+        << '-' << std::setw(4) << ar_guid.Data2
+        << '-' << std::setw(4) << ar_guid.Data3
+        << '-' << std::setw(2) << (unsigned int)(ar_guid.Data4[0])
+        << std::setw(2)
+        << (unsigned int)(ar_guid.Data4[1])
+        << '-' << std::setw(2) << (unsigned int)(ar_guid.Data4[2])
+        << std::setw(2)
+        << (unsigned int)(ar_guid.Data4[3])
+        << std::setw(2)
+        << (unsigned int)(ar_guid.Data4[4])
+        << std::setw(2)
+        << (unsigned int)(ar_guid.Data4[5])
+        << std::setw(2)
+        << (unsigned int)(ar_guid.Data4[6])
+        << std::setw(2)
+        << (unsigned int)(ar_guid.Data4[7])
+        << std::flush;
+
+    ar_wstring = l_uuid.str();
+}
 
 class BLEDevice
 {
     public:
+        Windows::Devices::Enumeration::DeviceInformation* mp_di;
+        Windows::Devices::Bluetooth::BluetoothLEDevice* mp_bled;
+
+        std::map < std::wstring, GattDeviceService *> m_uuid_to_service;
         BLEDevice()
             : mp_di(0)
-            , mp_bluetoothLeDevice(0)
+            , mp_bled(0)
         {
         }
 
         ~BLEDevice()
         {
-            if (mp_bluetoothLeDevice)
             {
-                mp_bluetoothLeDevice->Close();
-                delete mp_bluetoothLeDevice;
+                std::map < std::wstring, GattDeviceService*>::iterator l_ptr, l_end;
+                for (l_end = m_uuid_to_service.end(), l_ptr = m_uuid_to_service.begin(); l_ptr != l_end; ++l_ptr)
+                {
+                    l_ptr->second->Close();
+                    delete l_ptr->second;
+                }
+            }
+            if (mp_bled)
+            {
+                mp_bled->Close();
+                delete mp_bled;
             }
             delete mp_di;
         }
-        Windows::Devices::Enumeration::DeviceInformation *mp_di;
-        Windows::Devices::Bluetooth::BluetoothLEDevice *mp_bluetoothLeDevice;
 };
 
 class Discovery
@@ -232,8 +271,8 @@ class Discovery
             writer.ByteOrder(ByteOrder::LittleEndian);
             writer.WriteInt32(a_value);
             GattDeviceServicesResult l_gdsr{ nullptr };
-            l_gdsr.Services().
-            GattWriteResult result = co_await selectedCharacteristic.WriteValueWithResultAsync(writer.DetachBuffer());
+            //l_gdsr.Services().
+            //GattWriteResult result = co_await selectedCharacteristic.WriteValueWithResultAsync(writer.DetachBuffer());
 
             co_return true;
         }
@@ -249,7 +288,7 @@ class Discovery
         {
             Windows::Devices::Enumeration::DeviceInformation* lp_di = ap_bd->mp_di;
             if (!lp_di) return false;
-            if (ap_bd->mp_bluetoothLeDevice) return true;
+            if (ap_bd->mp_bled) return true;
 
             Windows::Devices::Bluetooth::BluetoothLEDevice l_bluetoothLeDevice{ nullptr };
             IAsyncOperation<bool> l_ret = GetBLEDeviceUWP(l_bluetoothLeDevice, lp_di->Id());
@@ -258,7 +297,7 @@ class Discovery
                 return false;
             }
 
-            ap_bd->mp_bluetoothLeDevice = ::new Windows::Devices::Bluetooth::BluetoothLEDevice(l_bluetoothLeDevice);
+            ap_bd->mp_bled = ::new Windows::Devices::Bluetooth::BluetoothLEDevice(l_bluetoothLeDevice);
 
             return true;
         }
@@ -273,7 +312,7 @@ class Discovery
 
         bool GetGattServices(BLEDevice* ap_bd, GattDeviceServicesResult& ar_gdsr)
         {
-            IAsyncOperation<bool> l_ret = GetGattServicesUWP(ap_bd->mp_bluetoothLeDevice, ar_gdsr);
+            IAsyncOperation<bool> l_ret = GetGattServicesUWP(ap_bd->mp_bled, ar_gdsr);
 
             if (!l_ret.get())
             {
@@ -312,34 +351,15 @@ class Discovery
 
             for (unsigned int i=0; i< l_gdsr.Services().Size();++i)
             {
-                std::wstringstream l_uuid;
-                GattDeviceService& lr_gds = l_gdsr.Services().GetAt(i);
-                l_uuid.fill('0');
-                l_uuid << std::uppercase << std::hex
-                    << std::setw(8)
-                    << lr_gds.Uuid().Data1
-                    << '-' << std::setw(4) << lr_gds.Uuid().Data2
-                    << '-' << std::setw(4) << lr_gds.Uuid().Data3
-                    << '-' << std::setw(2) << (unsigned int)(lr_gds.Uuid().Data4[0])
-                    << std::setw(2)
-                    << (unsigned int)(lr_gds.Uuid().Data4[1])
-                    << '-' << std::setw(2) << (unsigned int)(lr_gds.Uuid().Data4[2])
-                    << std::setw(2)
-                    << (unsigned int)(lr_gds.Uuid().Data4[3])
-                    << std::setw(2)
-                    << (unsigned int)(lr_gds.Uuid().Data4[4])
-                    << std::setw(2)
-                    << (unsigned int)(lr_gds.Uuid().Data4[5])
-                    << std::setw(2)
-                    << (unsigned int)(lr_gds.Uuid().Data4[6])
-                    << std::setw(2)
-                    << (unsigned int)(lr_gds.Uuid().Data4[7]);
-                l_str = ap_jenv->NewString((jchar*)l_uuid.str().c_str(), (jsize)l_uuid.str().length());
+                std::wstring l_uuid;
+                guidTowstring(l_gdsr.Services().GetAt(i).Uuid(), l_uuid);
+                m_id_to_bd[l_id]->m_uuid_to_service[l_uuid] = ::new GattDeviceService(l_gdsr.Services().GetAt(i));
+                l_str = ap_jenv->NewString((jchar*)l_uuid.c_str(), (jsize)l_uuid.length());
                 ap_jenv->SetObjectArrayElement(l_svcs, i, l_str);
             }
-            m_id_to_bd[l_id]->mp_bluetoothLeDevice->Close();
-            delete m_id_to_bd[l_id]->mp_bluetoothLeDevice;
-            m_id_to_bd[l_id]->mp_bluetoothLeDevice = NULL;
+            m_id_to_bd[l_id]->mp_bled->Close();
+            delete m_id_to_bd[l_id]->mp_bled;
+            m_id_to_bd[l_id]->mp_bled = NULL;
 
             return l_svcs;
         }
