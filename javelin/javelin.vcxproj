@@ -235,6 +235,7 @@
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <AdditionalUsingDirectories>
       </AdditionalUsingDirectories>
+      <AdditionalOptions>/await %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

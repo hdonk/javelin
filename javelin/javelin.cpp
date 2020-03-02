@@ -12,6 +12,22 @@ using namespace Windows::Foundation;
 using namespace Windows::Devices::Bluetooth;
 using namespace Windows::Devices::Bluetooth::GenericAttributeProfile;
 
+// Utility Functions
+std::wstring Java_To_WStr(JNIEnv* env, jstring string)
+{
+    std::wstring value;
+
+    const jchar* raw = env->GetStringChars(string, 0);
+    jsize len = env->GetStringLength(string);
+
+    value.assign(raw, raw + len);
+
+    env->ReleaseStringChars(string, raw);
+
+    return value;
+}
+
+
 class Discovery
 {
         static Discovery* sm_dc;
@@ -166,7 +182,7 @@ class Discovery
         IAsyncOperation<bool> GetGattServices(Windows::Devices::Bluetooth::BluetoothLEDevice& ar_bled)
         {
             GattDeviceServicesResult l_result = co_await ar_bled.GetGattServicesAsync(BluetoothCacheMode::Uncached);
-            if (l_result.Status() != GattCommunicationStatus.Success) co_return false;
+            if (l_result.Status() != GattCommunicationStatus::Success) co_return false;
             else co_return true;
         }
 
@@ -175,7 +191,7 @@ class Discovery
             std::map<std::wstring, Windows::Devices::Enumeration::DeviceInformation*>::iterator l_end, l_ptr;
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
 
-            std::wstring l_id(a_id.c_str());
+            std::wstring l_id = Java_To_WStr(ap_jenv, a_id);
             Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_di[l_id];
             if (!lp_di) return NULL;
 
@@ -237,20 +253,6 @@ class Discovery
 };
 
 Discovery *Discovery::sm_dc = NULL;
-
-std::wstring Java_To_WStr(JNIEnv* env, jstring string)
-{
-    std::wstring value;
-
-    const jchar* raw = env->GetStringChars(string, 0);
-    jsize len = env->GetStringLength(string);
-
-    value.assign(raw, raw + len);
-
-    env->ReleaseStringChars(string, raw);
-
-    return value;
-}
 
 JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDevices
 (JNIEnv *ap_jenv, jclass)
