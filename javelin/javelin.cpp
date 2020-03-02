@@ -225,6 +225,19 @@ class Discovery
             return l_ids;
         }
 
+        IAsyncOperation<bool> setValueUWP(GattDeviceService& ar_gds,
+            guid& ar_uuid, int32_t a_value)
+        {
+            DataWriter writer;
+            writer.ByteOrder(ByteOrder::LittleEndian);
+            writer.WriteInt32(a_value);
+            GattDeviceServicesResult l_gdsr{ nullptr };
+            l_gdsr.Services().
+            GattWriteResult result = co_await selectedCharacteristic.WriteValueWithResultAsync(writer.DetachBuffer());
+
+            co_return true;
+        }
+
         IAsyncOperation<bool> GetBLEDeviceUWP(Windows::Devices::Bluetooth::BluetoothLEDevice& ar_bled, hstring &ar_id)
         {
             Windows::Devices::Bluetooth::BluetoothLEDevice l_bluetoothLeDevice = co_await BluetoothLEDevice::FromIdAsync(ar_id);
