@@ -15,7 +15,7 @@ public class javelin_test {
 				System.out.println(" "+l_device);
 				String l_name = javelin.getBLEDeviceName(l_device);
 				System.out.println("  Name: "+l_name);
-				if(l_name.startsWith("E3D"))
+				if(l_name.startsWith("E3DT"))
 				{
 					String l_services[] = javelin.listBLEDeviceServices(l_device);
 					if(l_services!=null)
@@ -33,10 +33,14 @@ public class javelin_test {
 							}
 						}
 					}
+					byte[] l_bytes = { 0x16, 0x00 };
 					System.out.println("Set char said: "+javelin.setBLECharacteristicValue(l_device,
 							"544d4f54-4f52-2053-4552-564943452020".toUpperCase(),
 							"4d4f544f-5220-4950-4f53-202020202020".toUpperCase(),
-							30));
+							l_bytes));
+					System.out.println("Get char said: "+javelin.getBLECharacteristicValue(l_device,
+							"544d4f54-4f52-2053-4552-564943452020".toUpperCase(),
+							"4d4f544f-5220-4950-4f53-202020202020".toUpperCase()));
 				}
 			}
 		}

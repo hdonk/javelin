@@ -42,18 +42,18 @@ JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEServiceCharacte
 /*
  * Class:     javelin_test_javelin
  * Method:    getBLECharacteristicValue
- * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)J
+ * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)[B
  */
-JNIEXPORT jlong JNICALL Java_javelin_1test_javelin_getBLECharacteristicValue
+JNIEXPORT jbyteArray JNICALL Java_javelin_1test_javelin_getBLECharacteristicValue
   (JNIEnv *, jclass, jstring, jstring, jstring);
 
 /*
  * Class:     javelin_test_javelin
  * Method:    setBLECharacteristicValue
- * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Z
+ * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;[B)Z
  */
 JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_setBLECharacteristicValue
-  (JNIEnv *, jclass, jstring, jstring, jstring, jlong);
+  (JNIEnv *, jclass, jstring, jstring, jstring, jbyteArray);
 
 #ifdef __cplusplus
 }

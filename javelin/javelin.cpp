@@ -289,19 +289,6 @@ class Discovery
             return l_ids;
         }
 
-        IAsyncOperation<bool> setValueUWP(GattDeviceService& ar_gds,
-            guid& ar_uuid, int32_t a_value)
-        {
-            DataWriter writer;
-            writer.ByteOrder(ByteOrder::LittleEndian);
-            writer.WriteInt32(a_value);
-            GattDeviceServicesResult l_gdsr{ nullptr };
-            //l_gdsr.Services().
-            //GattWriteResult result = co_await selectedCharacteristic.WriteValueWithResultAsync(writer.DetachBuffer());
-
-            co_return true;
-        }
-
         IAsyncOperation<bool> GetBLEDeviceUWP(Windows::Devices::Bluetooth::BluetoothLEDevice& ar_bled, hstring &ar_id)
         {
             Windows::Devices::Bluetooth::BluetoothLEDevice l_bld = co_await BluetoothLEDevice::FromIdAsync(ar_id);
@@ -444,6 +431,7 @@ class Discovery
             {
                 std::wstring l_uuid;
                 guidTowstring(l_gcr.Characteristics().GetAt(i).Uuid(), l_uuid);
+                std::wcout << "Char " << l_uuid << " added " << std::endl;
                 m_id_to_bd[l_id]->m_uuid_to_service[l_service]->m_uuid_to_characteristic[l_uuid] =
                         ::new GattCharacteristic(l_gcr.Characteristics().GetAt(i));
                 l_str = ap_jenv->NewString((jchar*)l_uuid.c_str(), (jsize)l_uuid.length());
@@ -464,19 +452,79 @@ class Discovery
             }
         }
 
-        IAsyncOperation<bool> SetGattCharacteristicValueUWP(GattCharacteristic* ap_gc,
-            GattWriteResult& ar_gwr, long a_value)
+        IAsyncOperation<bool> GetGattCharacteristicValueUWP(GattCharacteristic* ap_gc,
+            GattReadResult& ar_grr, DataReader &ar_dr)
         {
-            DataWriter writer;
-            writer.ByteOrder(ByteOrder::LittleEndian);
-            writer.WriteInt32(a_value);
+            ar_grr = co_await ap_gc->ReadValueAsync(BluetoothCacheMode::Uncached);
             MARK;
-            ar_gwr = co_await ap_gc->WriteValueWithResultAsync(writer.DetachBuffer());
+            if (ar_grr.Status() != GattCommunicationStatus::Success)
+            {
+                std::cerr << "Failed to read Gatt Characteristic "
+                    << " Due to " << to_string(ar_grr.Status()) << std::endl;
+                co_return false;
+            }
+            else
+            {
+                ar_dr = DataReader::FromBuffer(ar_grr.Value());
+                std::cout << "OK!" << std::endl;
+                co_return true;
+            }
+        }
+
+        bool GetGattCharacteristicValue(GattCharacteristic* ap_gc, GattReadResult& ar_grr, DataReader &ar_dr)
+        {
+            std::wstring l_uuid;
+            guidTowstring(ap_gc->Uuid(), l_uuid);
+            std::wcout << __func__ << " Char " << l_uuid << std::endl;
+
+            IAsyncOperation<bool> l_ret = GetGattCharacteristicValueUWP(ap_gc, ar_grr, ar_dr);
+            MARK;
+            if (!l_ret.get())
+            {
+                std::cout << "Failed to get gatt svcs characteristic value" << std::endl;
+                return false;
+            }
+            else
+                return true;
+        }
+
+        bool getJavaBLECharacteristicValue(JNIEnv* ap_jenv, jstring a_id, jstring a_service, jstring a_characteristic, DataReader &ar_dr)
+        {
+            concurrency::critical_section::scoped_lock l_lock(m_lock_std);
+            MARK;
+            std::wstring l_id = Java_To_WStr(ap_jenv, a_id);
+            std::wstring l_service = Java_To_WStr(ap_jenv, a_service);
+            std::wstring l_char = Java_To_WStr(ap_jenv, a_characteristic);
+            std::wcout << "lf " << l_service << '/' << l_char << std::endl;
+
+            if (m_id_to_bd.find(l_id) == m_id_to_bd.end()) return false;
+            MARK;
+            Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_bd[l_id]->mp_di;
+            if (!lp_di) return false;
+            MARK;
+            if (m_id_to_bd[l_id]->m_uuid_to_service.find(l_service) == m_id_to_bd[l_id]->m_uuid_to_service.end()) return false;
+            BLEService* lp_bs = m_id_to_bd[l_id]->m_uuid_to_service[l_service];
+            if (!lp_bs) return false;
+            MARK;
+            if (lp_bs->m_uuid_to_characteristic.find(l_char) == lp_bs->m_uuid_to_characteristic.end()) return false;
+            GattCharacteristic* lp_gc = lp_bs->m_uuid_to_characteristic[l_char];
+            if (!lp_gc) return false;
+            MARK;
+            GattReadResult l_grr{ nullptr };
+            bool l_ret = GetGattCharacteristicValue(lp_gc, l_grr, ar_dr);
+            return l_ret;
+        }
+
+        IAsyncOperation<bool> SetGattCharacteristicValueUWP(GattCharacteristic* ap_gc,
+            GattWriteResult& ar_gwr, DataWriter &ar_dw)
+        {
+            MARK;
+            ar_gwr = co_await ap_gc->WriteValueWithResultAsync(ar_dw.DetachBuffer());
             MARK;
             if (ar_gwr.Status() != GattCommunicationStatus::Success)
             {
-                std::cerr << "Failed to write Gatt Characteristic " << a_value
-                        << " Due to " << to_string(ar_gwr.Status()) << std::endl;
+                std::cerr << "Failed to write Gatt Characteristic due to " << 
+                        to_string(ar_gwr.Status()) << std::endl;
                 co_return false;
             }
             else
@@ -486,9 +534,9 @@ class Discovery
             }
         }
 
-        bool SetGattCharacteristicValue(GattCharacteristic* ap_gc, GattWriteResult& ar_gwr, long a_value)
+        bool SetGattCharacteristicValue(GattCharacteristic* ap_gc, GattWriteResult& ar_gwr, DataWriter &ar_dw)
         {
-            IAsyncOperation<bool> l_ret = SetGattCharacteristicValueUWP(ap_gc, ar_gwr, a_value);
+            IAsyncOperation<bool> l_ret = SetGattCharacteristicValueUWP(ap_gc, ar_gwr, ar_dw);
             MARK;
             if (!l_ret.get())
             {
@@ -499,14 +547,13 @@ class Discovery
                 return true;
         }
 
-        bool setJavaBLECharacteristicValue(JNIEnv* ap_jenv, jstring a_id, jstring a_service, jstring a_characteristic, jlong a_value)
+        bool setJavaBLECharacteristicValue(JNIEnv* ap_jenv, jstring a_id, jstring a_service, jstring a_characteristic, DataWriter &ar_dw)
         {
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
             MARK;
             std::wstring l_id = Java_To_WStr(ap_jenv, a_id);
             std::wstring l_service = Java_To_WStr(ap_jenv, a_service);
             std::wstring l_char = Java_To_WStr(ap_jenv, a_characteristic);
-            long l_value = (long)a_value;
 
             if (m_id_to_bd.find(l_id) == m_id_to_bd.end()) return false;
             MARK;
@@ -522,7 +569,7 @@ class Discovery
             if (!lp_gc) return false;
             MARK;
             GattWriteResult l_gwr{ nullptr };
-            return SetGattCharacteristicValue(lp_gc, l_gwr, l_value);
+            return SetGattCharacteristicValue(lp_gc, l_gwr, ar_dw);
         }
 
         static void DeviceWatcher_Added(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformation deviceInfo)
@@ -607,18 +654,39 @@ JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEServiceCharacte
     return lp_dc->getJavaBLEServiceCharacteristics(ap_jenv, a_id, a_service);
 }
 
-JNIEXPORT jlong JNICALL Java_javelin_1test_javelin_getBLECharacteristicValue
-(JNIEnv*, jclass, jstring, jstring, jstring)
+JNIEXPORT jbyteArray JNICALL Java_javelin_1test_javelin_getBLECharacteristicValue
+(JNIEnv* ap_jenv, jclass, jstring a_id, jstring a_service, jstring a_characteristic)
 {
-    return 0;
+    Discovery* lp_dc = Discovery::getDiscovery();
+    DataReader l_dr{ nullptr };
+    if(lp_dc->getJavaBLECharacteristicValue(ap_jenv, a_id, a_service, a_characteristic, l_dr))
+    {
+        std::vector<byte> l_bytes;
+        int l_len = l_dr.UnconsumedBufferLength();
+        jbyte *lp_jbytes = ::new jbyte[l_len];
+        jbyteArray l_ba = ap_jenv->NewByteArray(l_len);
+        for(int i=0; i<l_len; ++i)
+            lp_jbytes[i] = l_dr.ReadByte();
+        ap_jenv->SetByteArrayRegion(l_ba, 0, l_len, lp_jbytes);
+        delete lp_jbytes;
+        return l_ba;
+    }
+    else
+        return NULL;
 }
 
 JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_setBLECharacteristicValue
-(JNIEnv * ap_jenv, jclass, jstring a_id, jstring a_service, jstring a_characteristic, jlong a_value)
+(JNIEnv * ap_jenv, jclass, jstring a_id, jstring a_service, jstring a_characteristic, jbyteArray a_value)
 {
     Discovery* lp_dc = Discovery::getDiscovery();
-    MARK;
-    return lp_dc->setJavaBLECharacteristicValue(ap_jenv, a_id, a_service, a_characteristic, a_value);
+    jbyte *lp_jbytes;
+    lp_jbytes = ap_jenv->GetByteArrayElements(a_value, 0);
+    DataWriter l_dw;
+    l_dw.ByteOrder(ByteOrder::LittleEndian);
+    for(int i=0; i<ap_jenv->GetArrayLength(a_value); ++i)
+        l_dw.WriteByte(lp_jbytes[i]);
+    ap_jenv->ReleaseByteArrayElements(a_value, lp_jbytes, 0);
+    return lp_dc->setJavaBLECharacteristicValue(ap_jenv, a_id, a_service, a_characteristic, l_dw);
 }
 
 BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */)
