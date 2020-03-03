@@ -17,6 +17,14 @@ JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDevices
 
 /*
  * Class:     javelin_test_javelin
+ * Method:    getBLEDeviceName
+ * Signature: (Ljava/lang/String;)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_javelin_1test_javelin_getBLEDeviceName
+  (JNIEnv *, jclass, jstring);
+
+/*
+ * Class:     javelin_test_javelin
  * Method:    listBLEDeviceServices
  * Signature: (Ljava/lang/String;)[Ljava/lang/String;
  */
@@ -25,11 +33,27 @@ JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDeviceServices
 
 /*
  * Class:     javelin_test_javelin
- * Method:    getBLEDeviceName
- * Signature: (Ljava/lang/String;)Ljava/lang/String;
+ * Method:    listBLEServiceCharacteristics
+ * Signature: (Ljava/lang/String;Ljava/lang/String;)[Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_javelin_1test_javelin_getBLEDeviceName
-  (JNIEnv *, jclass, jstring);
+JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEServiceCharacteristics
+  (JNIEnv *, jclass, jstring, jstring);
+
+/*
+ * Class:     javelin_test_javelin
+ * Method:    getBLECharacteristicValue
+ * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)J
+ */
+JNIEXPORT jlong JNICALL Java_javelin_1test_javelin_getBLECharacteristicValue
+  (JNIEnv *, jclass, jstring, jstring, jstring);
+
+/*
+ * Class:     javelin_test_javelin
+ * Method:    setBLECharacteristicValue
+ * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;J)Z
+ */
+JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_setBLECharacteristicValue
+  (JNIEnv *, jclass, jstring, jstring, jstring, jlong);
 
 #ifdef __cplusplus
 }

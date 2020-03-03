@@ -23,8 +23,20 @@ public class javelin_test {
 						for(String l_service: l_services)
 						{
 							System.out.println("   Service: "+l_service);
+							String l_chars[] = javelin.listBLEServiceCharacteristics(l_device, l_service);
+							if(l_chars!=null)
+							{
+								for(String l_char: l_chars)
+								{
+									System.out.println("   Characteristic: "+l_char);
+								}
+							}
 						}
 					}
+					System.out.println("Set char said: "+javelin.setBLECharacteristicValue(l_device,
+							"544d4f54-4f52-2053-4552-564943452020".toUpperCase(),
+							"4d4f544f-5220-4950-4f53-202020202020".toUpperCase(),
+							30));
 				}
 			}
 		}
