@@ -60,13 +60,36 @@ void guidTowstring(guid& ar_guid, std::wstring& ar_wstring)
     ar_wstring = l_uuid.str();
 }
 
+class BLEService
+{
+    public:
+        GattDeviceService* mp_ds;
+        std::map < std::wstring, GattCharacteristic*> m_uuid_to_characteristic;
+
+        BLEService()
+        {
+        }
+        ~BLEService()
+        {
+            {
+                std::map < std::wstring, GattCharacteristic *>::iterator l_ptr, l_end;
+                for (l_end = m_uuid_to_characteristic.end(), l_ptr = m_uuid_to_characteristic.begin(); l_ptr != l_end; ++l_ptr)
+                {
+                    delete l_ptr->second;
+                }
+            }
+
+            delete mp_ds;
+        }
+};
+
 class BLEDevice
 {
     public:
         Windows::Devices::Enumeration::DeviceInformation* mp_di;
         Windows::Devices::Bluetooth::BluetoothLEDevice* mp_bled;
 
-        std::map < std::wstring, GattDeviceService *> m_uuid_to_service;
+        std::map < std::wstring, BLEService *> m_uuid_to_service;
         BLEDevice()
             : mp_di(0)
             , mp_bled(0)
@@ -76,10 +99,9 @@ class BLEDevice
         ~BLEDevice()
         {
             {
-                std::map < std::wstring, GattDeviceService*>::iterator l_ptr, l_end;
+                std::map < std::wstring, BLEService *>::iterator l_ptr, l_end;
                 for (l_end = m_uuid_to_service.end(), l_ptr = m_uuid_to_service.begin(); l_ptr != l_end; ++l_ptr)
                 {
-                    l_ptr->second->Close();
                     delete l_ptr->second;
                 }
             }
@@ -353,7 +375,7 @@ class Discovery
             {
                 std::wstring l_uuid;
                 guidTowstring(l_gdsr.Services().GetAt(i).Uuid(), l_uuid);
-                m_id_to_bd[l_id]->m_uuid_to_service[l_uuid] = ::new GattDeviceService(l_gdsr.Services().GetAt(i));
+                m_id_to_bd[l_id]->m_uuid_to_service[l_uuid]->mp_ds = ::new GattDeviceService(l_gdsr.Services().GetAt(i));
                 l_str = ap_jenv->NewString((jchar*)l_uuid.c_str(), (jsize)l_uuid.length());
                 ap_jenv->SetObjectArrayElement(l_svcs, i, l_str);
             }
