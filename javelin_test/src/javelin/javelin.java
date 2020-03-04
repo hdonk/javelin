@@ -1,4 +1,4 @@
-package javelin_test;
+package javelin;
 
 public class javelin {
 	public static native String[] listBLEDevices();

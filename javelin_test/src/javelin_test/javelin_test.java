@@ -1,5 +1,7 @@
 package javelin_test;
 
+import javelin.javelin;
+
 public class javelin_test {
 	public static javelin_test m_jt = null;
 	public javelin_test()
@@ -72,6 +74,7 @@ public class javelin_test {
 	
 	public static void main(String[] args)
 	{
+		System.out.println("Loading dlls");
 		System.loadLibrary("msvcp140d_app");
 		System.loadLibrary("vcruntime140_1d_app");
 		System.loadLibrary("VCRUNTIME140D_APP");

@@ -1,7 +1,7 @@
 ﻿#include "pch.h"
 #include "javelin.h"
 
-#include <../javelin_test/bin/javelin_test_javelin.h>
+#include <../javelin_test/bin/javelin_javelin.h>
 
 #include <iostream>
 #include <sstream>
@@ -716,7 +716,7 @@ class Discovery
 
 Discovery *Discovery::smp_dc = NULL;
 
-JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDevices
+JNIEXPORT jobjectArray JNICALL Java_javelin_javelin_listBLEDevices
 (JNIEnv *ap_jenv, jclass)
 {
 	std::wcout << "javelin starting" << std::endl;
@@ -734,14 +734,14 @@ JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDevices
     }
 }
 
-JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDeviceServices
+JNIEXPORT jobjectArray JNICALL Java_javelin_javelin_listBLEDeviceServices
 (JNIEnv *ap_jenv, jclass, jstring a_id)
 {
     Discovery* lp_dc = Discovery::getDiscovery();
     return lp_dc->getJavaBLEDeviceServices(ap_jenv, a_id);
 }
 
-JNIEXPORT jstring JNICALL Java_javelin_1test_javelin_getBLEDeviceName
+JNIEXPORT jstring JNICALL Java_javelin_javelin_getBLEDeviceName
 (JNIEnv *ap_jenv, jclass, jstring a_id)
 {
     std::wstring l_id = Java_To_WStr(ap_jenv, a_id);
@@ -753,7 +753,7 @@ JNIEXPORT jstring JNICALL Java_javelin_1test_javelin_getBLEDeviceName
     return l_str;
 }
 
-JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEServiceCharacteristics
+JNIEXPORT jobjectArray JNICALL Java_javelin_javelin_listBLEServiceCharacteristics
 (JNIEnv *ap_jenv, jclass, jstring a_id, jstring a_service)
 
 {
@@ -761,7 +761,7 @@ JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEServiceCharacte
     return lp_dc->getJavaBLEServiceCharacteristics(ap_jenv, a_id, a_service);
 }
 
-JNIEXPORT jbyteArray JNICALL Java_javelin_1test_javelin_getBLECharacteristicValue
+JNIEXPORT jbyteArray JNICALL Java_javelin_javelin_getBLECharacteristicValue
 (JNIEnv* ap_jenv, jclass, jstring a_id, jstring a_service, jstring a_characteristic)
 {
     Discovery* lp_dc = Discovery::getDiscovery();
@@ -782,7 +782,7 @@ JNIEXPORT jbyteArray JNICALL Java_javelin_1test_javelin_getBLECharacteristicValu
         return NULL;
 }
 
-JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_setBLECharacteristicValue
+JNIEXPORT jboolean JNICALL Java_javelin_javelin_setBLECharacteristicValue
 (JNIEnv * ap_jenv, jclass, jstring a_id, jstring a_service, jstring a_characteristic, jbyteArray a_value)
 {
     Discovery* lp_dc = Discovery::getDiscovery();
@@ -796,21 +796,21 @@ JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_setBLECharacteristicValue
     return lp_dc->setJavaBLECharacteristicValue(ap_jenv, a_id, a_service, a_characteristic, l_dw);
 }
 
-JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_watchBLECharacteristicChanges
+JNIEXPORT jboolean JNICALL Java_javelin_javelin_watchBLECharacteristicChanges
 (JNIEnv* ap_jenv, jclass, jstring a_id, jstring a_service, jstring a_characteristic)
 {
     Discovery* lp_dc = Discovery::getDiscovery();
     return lp_dc->watchJavaBLECharacteristicChanges(ap_jenv, a_id, a_service, a_characteristic);
 }
 
-JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_clearBLECharacteristicChanges
+JNIEXPORT jboolean JNICALL Java_javelin_javelin_clearBLECharacteristicChanges
 (JNIEnv* ap_jenv, jclass, jstring a_id, jstring a_service, jstring a_characteristic)
 {
     Discovery* lp_dc = Discovery::getDiscovery();
     return lp_dc->clearJavaBLECharacteristicChanges(ap_jenv, a_id, a_service, a_characteristic);
 }
 
-JNIEXPORT jbyteArray JNICALL Java_javelin_1test_javelin_waitForBLECharacteristicChanges
+JNIEXPORT jbyteArray JNICALL Java_javelin_javelin_waitForBLECharacteristicChanges
 (JNIEnv* ap_jenv, jclass, jstring a_id, jstring a_service, jstring a_characteristic, jint a_timeout_ms)
 {
     Discovery* lp_dc = Discovery::getDiscovery();
