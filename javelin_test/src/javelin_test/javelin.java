@@ -10,5 +10,6 @@ public class javelin {
 	
 	public static native boolean watchBLECharacteristicChanges(String a_dev_id, String a_service_uuid, String a_characterics_uuid);
 	public static native boolean clearBLECharacteristicChanges(String a_dev_id, String a_service_uuid, String a_characterics_uuid);
-	public static native boolean waitForBLECharacteristicChanges(String a_dev_id, String a_service_uuid, String a_characterics_uuid, int a_timeout_ms);
+	public static native byte[] waitForBLECharacteristicChanges(String a_dev_id, String a_service_uuid, String a_characterics_uuid,
+			int a_timeout_ms);
 }

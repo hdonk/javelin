@@ -74,9 +74,9 @@ JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_clearBLECharacteristicChan
 /*
  * Class:     javelin_test_javelin
  * Method:    waitForBLECharacteristicChanges
- * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)Z
+ * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)[B
  */
-JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_waitForBLECharacteristicChanges
+JNIEXPORT jbyteArray JNICALL Java_javelin_1test_javelin_waitForBLECharacteristicChanges
   (JNIEnv *, jclass, jstring, jstring, jstring, jint);
 
 #ifdef __cplusplus

@@ -7,6 +7,8 @@
 #include <sstream>
 #include <iomanip>
 #include <concrt.h>
+#include <queue>
+
 using namespace winrt;
 using namespace Windows::Devices::Enumeration;
 using namespace Windows::Foundation;
@@ -137,6 +139,8 @@ class Discovery
         std::map<std::wstring, BLEDevice *> m_id_to_bd;
         concurrency::event m_discovery_complete;
 
+        JNIEnv* mp_jenv;
+
         Windows::Devices::Enumeration::DeviceWatcher m_deviceWatcher{ nullptr };
         event_token m_deviceWatcherAddedToken;
         event_token m_deviceWatcherUpdatedToken;
@@ -147,6 +151,7 @@ class Discovery
         std::map < std::wstring, event_token> m_uuid_to_notification_token;
         std::map < std::wstring, concurrency::event> m_uuid_to_notification_event;
         std::map < std::wstring, GattCharacteristic*> m_uuid_to_notification_characteristic;
+        std::map < std::wstring, std::queue<jbyteArray> > m_uuid_to_changed_value;
 
 
     public:
@@ -194,6 +199,20 @@ class Discovery
             {
                 delete l_ptr->second;
             }
+
+            if(mp_jenv) {
+                std::map < std::wstring, std::queue<jbyteArray> >::iterator l_ptr, l_end;
+                for (l_end = m_uuid_to_changed_value.end(), l_ptr = m_uuid_to_changed_value.begin(); l_ptr != l_end; ++l_ptr)
+                {
+                    while (!l_ptr->second.empty())
+                    {
+                        jbyteArray l_ba = l_ptr->second.front();
+                        l_ptr->second.pop();
+                        mp_jenv->DeleteLocalRef(l_ba);
+                    }
+                }
+            }
+
             std::wcout << "javelin finished" << std::endl;
         }
 
@@ -242,8 +261,9 @@ class Discovery
             std::wcout << "Name: " << l_name << std::endl;*/
         }
 
-        void start_discovery()
+        void start_discovery(JNIEnv* ap_jenv)
         {
+            mp_jenv = ap_jenv;
             clear_discovery_complete();
 
             auto requestedProperties = single_threaded_vector<hstring>({ L"System.Devices.Aep.DeviceAddress", L"System.Devices.Aep.IsConnected", L"System.Devices.Aep.Bluetooth.Le.IsConnectable" });
@@ -604,8 +624,6 @@ class Discovery
             guidTowstring(ar_gc.Uuid(), l_gc_uuid);
             DataReader l_dr = DataReader::FromBuffer(a_args.CharacteristicValue());
             
-            std::wcout << "Got vc size " << l_dr.UnconsumedBufferLength() << std::endl;
-
             smp_dc->signal_characteristic_valuechanged(l_gc_uuid, l_dr);
         }
 
@@ -622,6 +640,17 @@ class Discovery
                 std::wcerr << "Notification event not found" << std::endl;
                 return;
             }
+
+            std::vector<byte> l_bytes;
+            int l_len = ar_dr.UnconsumedBufferLength();
+            jbyte* lp_jbytes = ::new jbyte[l_len];
+            jbyteArray l_jba = mp_jenv->NewByteArray(l_len);
+            for (int i = 0; i < l_len; ++i)
+                lp_jbytes[i] = ar_dr.ReadByte();
+            mp_jenv->SetByteArrayRegion(l_jba, 0, l_len, lp_jbytes);
+            delete lp_jbytes;
+
+            m_uuid_to_changed_value[ar_gc_uuid].push(l_jba);
             m_uuid_to_notification_event[ar_gc_uuid].set();
         }
 
@@ -663,7 +692,6 @@ class Discovery
             if (!WriteClientCharacteristicConfigurationDescriptorAsync(lp_gc, GattClientCharacteristicConfigurationDescriptorValue::Notify).get()) return false;
             m_uuid_to_notification_characteristic[l_char] = lp_gc;
             m_uuid_to_notification_token[l_char] = lp_gc->ValueChanged(&Discovery::Characteristic_ValueChanged);
-            m_uuid_to_notification_event[l_char].reset();
             return true;
         }
 
@@ -675,12 +703,14 @@ class Discovery
             return true;
         }
 
-        bool waitForJavaBLECharacteristicChanges(JNIEnv* ap_jenv, jstring a_id, jstring a_service, jstring a_characteristic, jint a_timeout_ms)
+        jbyteArray waitForJavaBLECharacteristicChanges(JNIEnv* ap_jenv, jstring a_id, jstring a_service, jstring a_characteristic, jint a_timeout_ms)
         {
             std::wstring l_char = Java_To_WStr(ap_jenv, a_characteristic);
-            m_uuid_to_notification_event[l_char].reset();
             if (m_uuid_to_notification_event[l_char].wait(a_timeout_ms) != 0) return false;
-            return true;
+            m_uuid_to_notification_event[l_char].reset();
+            jbyteArray l_ba = m_uuid_to_changed_value[l_char].front();
+            m_uuid_to_changed_value[l_char].pop();
+            return l_ba;
         }
 };
 
@@ -692,7 +722,7 @@ JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDevices
 	std::wcout << "javelin starting" << std::endl;
 
     Discovery *lp_dc = Discovery::getDiscovery();
-    lp_dc->start_discovery();
+    lp_dc->start_discovery(ap_jenv);
 
     if (lp_dc->wait_for_discovery_complete())
     {
@@ -780,7 +810,7 @@ JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_clearBLECharacteristicChan
     return lp_dc->clearJavaBLECharacteristicChanges(ap_jenv, a_id, a_service, a_characteristic);
 }
 
-JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_waitForBLECharacteristicChanges
+JNIEXPORT jbyteArray JNICALL Java_javelin_1test_javelin_waitForBLECharacteristicChanges
 (JNIEnv* ap_jenv, jclass, jstring a_id, jstring a_service, jstring a_characteristic, jint a_timeout_ms)
 {
     Discovery* lp_dc = Discovery::getDiscovery();

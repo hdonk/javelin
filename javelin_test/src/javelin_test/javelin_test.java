@@ -33,7 +33,7 @@ public class javelin_test {
 							}
 						}
 					}
-					byte[] l_bytes = { 0x7f, 0x04 };
+					byte[] l_bytes = { 0x1, 0x0 };
 					System.out.println("Watch said: "+
 						javelin.watchBLECharacteristicChanges(l_device,
 								"544d4f54-4f52-2053-4552-564943452020".toUpperCase(),
@@ -42,27 +42,24 @@ public class javelin_test {
 							"544d4f54-4f52-2053-4552-564943452020".toUpperCase(),
 							"4d4f544f-5220-4950-4f53-202020202020".toUpperCase(),
 							l_bytes));
-/*					System.out.println("Clear said: "+
-							javelin.clearBLECharacteristicChanges(l_device,
-									"544d4f54-4f52-2053-4552-564943452020".toUpperCase(),
-									"4d4f544f-5220-4d4d-4f44-452020202020".toUpperCase()) );*/
-					System.out.println("Wait 1 for said: "+
-							javelin.waitForBLECharacteristicChanges(l_device,
-									"544d4f54-4f52-2053-4552-564943452020".toUpperCase(),
-									"4d4f544f-5220-4d4d-4f44-452020202020".toUpperCase(), 20000));
-					System.out.println("Wait 2 for said: "+
-							javelin.waitForBLECharacteristicChanges(l_device,
-									"544d4f54-4f52-2053-4552-564943452020".toUpperCase(),
-									"4d4f544f-5220-4d4d-4f44-452020202020".toUpperCase(), 20000));
-/*					l_bytes = javelin.getBLECharacteristicValue(l_device,
+					l_bytes = javelin.waitForBLECharacteristicChanges(l_device,
 							"544d4f54-4f52-2053-4552-564943452020".toUpperCase(),
-							"4d4f544f-5220-4950-4f53-202020202020".toUpperCase());
-					System.out.print("Get char said:");
+							"4d4f544f-5220-4d4d-4f44-452020202020".toUpperCase(), 20000);
+					System.out.print("Wait 1 said: ");
 					if(l_bytes!=null) for(byte l_byte : l_bytes)
 					{
 						System.out.print(" "+l_byte);
 					}
-					System.out.println("");*/
+					System.out.println("");
+					l_bytes = javelin.waitForBLECharacteristicChanges(l_device,
+							"544d4f54-4f52-2053-4552-564943452020".toUpperCase(),
+							"4d4f544f-5220-4d4d-4f44-452020202020".toUpperCase(), 40000);
+					System.out.print("Wait 2 said: ");
+					if(l_bytes!=null) for(byte l_byte : l_bytes)
+					{
+						System.out.print(" "+l_byte);
+					}
+					System.out.println("");
 				}
 			}
 		}
