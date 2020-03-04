@@ -597,16 +597,19 @@ class Discovery
             smp_dc->signal_discovery_complete();
         };
 
-        static void Characteristic_ValueChanged(GattCharacteristic const &ar_gc, GattValueChangedEventArgs args)
+        static void Characteristic_ValueChanged(GattCharacteristic const &ar_gc, GattValueChangedEventArgs a_args)
         {
             if (!smp_dc) return;
             std::wstring l_gc_uuid;
             guidTowstring(ar_gc.Uuid(), l_gc_uuid);
+            DataReader l_dr = DataReader::FromBuffer(a_args.CharacteristicValue());
+            
+            std::wcout << "Got vc size " << l_dr.UnconsumedBufferLength() << std::endl;
 
-            smp_dc->signal_characteristic_valuechanged(l_gc_uuid);
+            smp_dc->signal_characteristic_valuechanged(l_gc_uuid, l_dr);
         }
 
-        void signal_characteristic_valuechanged(std::wstring& ar_gc_uuid)
+        void signal_characteristic_valuechanged(std::wstring& ar_gc_uuid, DataReader &ar_dr)
         {
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
             if (m_uuid_to_notification_token.find(ar_gc_uuid) == m_uuid_to_notification_token.end())
