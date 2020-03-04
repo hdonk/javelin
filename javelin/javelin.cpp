@@ -17,7 +17,8 @@ using namespace Windows::Storage::Streams;
 //using namespace Windows::Foundation::Collections::IVectorView;
 
 // Utility Functions
-#define MARK std::cout << __func__ << ':' << __LINE__ << std::endl;
+#define MARK std::wcerr << __func__ << ':' << __LINE__ << std::endl;
+
 std::wstring Java_To_WStr(JNIEnv* env, jstring string)
 {
     std::wstring value;
@@ -59,6 +60,18 @@ void guidTowstring(guid& ar_guid, std::wstring& ar_wstring)
         << std::flush;
 
     ar_wstring = l_uuid.str();
+}
+
+std::wstring gcs_to_wstring(GattCommunicationStatus status)
+{
+    switch (status)
+    {
+    case GattCommunicationStatus::Success: return std::wstring(L"Success");
+    case GattCommunicationStatus::Unreachable: return std::wstring(L"Unreachable");
+    case GattCommunicationStatus::ProtocolError: return std::wstring(L"ProtocolError");
+    case GattCommunicationStatus::AccessDenied: return std::wstring(L"AccessDenied");
+    default: return std::wstring(L"Unknown");
+    }
 }
 
 class BLEService
@@ -118,7 +131,7 @@ class BLEDevice
 
 class Discovery
 {
-        static Discovery* sm_dc;
+        static Discovery* smp_dc;
 
         concurrency::critical_section m_lock_std;
         std::map<std::wstring, BLEDevice *> m_id_to_bd;
@@ -130,6 +143,10 @@ class Discovery
         event_token m_deviceWatcherRemovedToken;
         event_token m_deviceWatcherEnumerationCompletedToken;
         event_token m_deviceWatcherStoppedToken;
+
+        std::map < std::wstring, event_token> m_uuid_to_notification_token;
+        std::map < std::wstring, concurrency::event> m_uuid_to_notification_event;
+        std::map < std::wstring, GattCharacteristic*> m_uuid_to_notification_characteristic;
 
 
     public:
@@ -161,10 +178,23 @@ class Discovery
                 m_deviceWatcher = nullptr;
             }
 
+            {
+                std::map < std::wstring, event_token>::iterator l_ptr, l_end;
+                for (l_end = m_uuid_to_notification_token.end(), l_ptr = m_uuid_to_notification_token.begin(); l_ptr != l_end; ++l_ptr)
+                {
+                    GattCharacteristic* lp_gc = m_uuid_to_notification_characteristic[l_ptr->first];
+                    if (lp_gc)
+                    {
+                        lp_gc->ValueChanged(l_ptr->second);
+                    }
+                }
+            }
+
             for (l_end = m_id_to_bd.end(), l_ptr = m_id_to_bd.begin(); l_ptr != l_end; ++l_ptr)
             {
                 delete l_ptr->second;
             }
+            std::wcout << "javelin finished" << std::endl;
         }
 
         void add_di(std::wstring &ar_id, Windows::Devices::Enumeration::DeviceInformation ar_di)
@@ -260,11 +290,11 @@ class Discovery
 
         static Discovery* getDiscovery()
         {
-            if (!sm_dc)
+            if (!smp_dc)
             {
-                sm_dc = new Discovery();
+                smp_dc = new Discovery();
             }
-            return sm_dc;
+            return smp_dc;
         }
 
         jobjectArray getJavaBLEDeviceList(JNIEnv* ap_jenv)
@@ -305,7 +335,7 @@ class Discovery
             Windows::Devices::Bluetooth::BluetoothLEDevice l_bld{ nullptr };
             IAsyncOperation<bool> l_ret = GetBLEDeviceUWP(l_bld, lp_di->Id());
             if (!l_ret.get()) {
-                std::cout << "Failed to get BLE dev" << std::endl;
+                std::wcerr << "Failed to get BLE dev" << std::endl;
                 return false;
             }
 
@@ -327,7 +357,7 @@ class Discovery
             IAsyncOperation<bool> l_ret = GetGattServicesUWP(ap_bd->mp_bled, ar_gdsr);
             if (!l_ret.get())
             {
-                std::cout << "Failed to get gatt svcs" << std::endl;
+                std::wcerr << "Failed to get gatt svcs" << std::endl;
                 return false;
             }
             else
@@ -355,7 +385,7 @@ class Discovery
             GattDeviceServicesResult l_gdsr{ nullptr };
             l_ret = GetGattServices(m_id_to_bd[l_id], l_gdsr);
             if (l_ret != true) {
-                std::cout << "Failed to get BLE services" << std::endl;
+                std::wcerr << "Failed to get BLE services" << std::endl;
                 return NULL;
             }
 
@@ -363,7 +393,6 @@ class Discovery
             jobjectArray l_svcs = 0;
             jsize l_len = (jsize)l_gdsr.Services().Size();
 
-            std::cout << "Found " << l_len << " services." << std::endl;
             l_svcs = ap_jenv->NewObjectArray(l_len, ap_jenv->FindClass("java/lang/String"), 0);
             for (unsigned int i=0; i< l_gdsr.Services().Size();++i)
             {
@@ -394,7 +423,7 @@ class Discovery
 
             if (!l_ret.get())
             {
-                std::cout << "Failed to get gatt svcs characteristics" << std::endl;
+                std::wcerr << "Failed to get gatt svcs characteristics" << std::endl;
                 return false;
             }
             else
@@ -417,7 +446,7 @@ class Discovery
             GattCharacteristicsResult l_gcr{ nullptr };
             bool l_ret = GetGattCharacteristics(m_id_to_bd[l_id]->m_uuid_to_service[l_service], l_gcr, l_service);
             if (l_ret != true) {
-                std::cout << "Failed to get BLE service characteristics" << std::endl;
+                std::wcerr << "Failed to get BLE service characteristics" << std::endl;
                 return NULL;
             }
 
@@ -431,7 +460,6 @@ class Discovery
             {
                 std::wstring l_uuid;
                 guidTowstring(l_gcr.Characteristics().GetAt(i).Uuid(), l_uuid);
-                std::wcout << "Char " << l_uuid << " added " << std::endl;
                 m_id_to_bd[l_id]->m_uuid_to_service[l_service]->m_uuid_to_characteristic[l_uuid] =
                         ::new GattCharacteristic(l_gcr.Characteristics().GetAt(i));
                 l_str = ap_jenv->NewString((jchar*)l_uuid.c_str(), (jsize)l_uuid.length());
@@ -440,33 +468,18 @@ class Discovery
             return l_characteristics;
         }
 
-        std::string to_string(GattCommunicationStatus status)
-        {
-            switch (status)
-            {
-            case GattCommunicationStatus::Success: return std::string("Success");
-            case GattCommunicationStatus::Unreachable: return std::string("Unreachable");
-            case GattCommunicationStatus::ProtocolError: return std::string("ProtocolError");
-            case GattCommunicationStatus::AccessDenied: return std::string("AccessDenied");
-            default: return std::string("Unknown");
-            }
-        }
-
         IAsyncOperation<bool> GetGattCharacteristicValueUWP(GattCharacteristic* ap_gc,
             GattReadResult& ar_grr, DataReader &ar_dr)
         {
             ar_grr = co_await ap_gc->ReadValueAsync(BluetoothCacheMode::Uncached);
-            MARK;
             if (ar_grr.Status() != GattCommunicationStatus::Success)
             {
-                std::cerr << "Failed to read Gatt Characteristic "
-                    << " Due to " << to_string(ar_grr.Status()) << std::endl;
+                std::wcerr << "Failed to read Gatt Characteristic d Due to " << gcs_to_wstring(ar_grr.Status()) << std::endl;
                 co_return false;
             }
             else
             {
                 ar_dr = DataReader::FromBuffer(ar_grr.Value());
-                std::cout << "OK!" << std::endl;
                 co_return true;
             }
         }
@@ -475,13 +488,11 @@ class Discovery
         {
             std::wstring l_uuid;
             guidTowstring(ap_gc->Uuid(), l_uuid);
-            std::wcout << __func__ << " Char " << l_uuid << std::endl;
 
             IAsyncOperation<bool> l_ret = GetGattCharacteristicValueUWP(ap_gc, ar_grr, ar_dr);
-            MARK;
             if (!l_ret.get())
             {
-                std::cout << "Failed to get gatt svcs characteristic value" << std::endl;
+                std::wcerr << "Failed to get gatt svcs characteristic value" << std::endl;
                 return false;
             }
             else
@@ -491,25 +502,19 @@ class Discovery
         bool getJavaBLECharacteristicValue(JNIEnv* ap_jenv, jstring a_id, jstring a_service, jstring a_characteristic, DataReader &ar_dr)
         {
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
-            MARK;
             std::wstring l_id = Java_To_WStr(ap_jenv, a_id);
             std::wstring l_service = Java_To_WStr(ap_jenv, a_service);
             std::wstring l_char = Java_To_WStr(ap_jenv, a_characteristic);
-            std::wcout << "lf " << l_service << '/' << l_char << std::endl;
 
             if (m_id_to_bd.find(l_id) == m_id_to_bd.end()) return false;
-            MARK;
             Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_bd[l_id]->mp_di;
             if (!lp_di) return false;
-            MARK;
             if (m_id_to_bd[l_id]->m_uuid_to_service.find(l_service) == m_id_to_bd[l_id]->m_uuid_to_service.end()) return false;
             BLEService* lp_bs = m_id_to_bd[l_id]->m_uuid_to_service[l_service];
             if (!lp_bs) return false;
-            MARK;
             if (lp_bs->m_uuid_to_characteristic.find(l_char) == lp_bs->m_uuid_to_characteristic.end()) return false;
             GattCharacteristic* lp_gc = lp_bs->m_uuid_to_characteristic[l_char];
             if (!lp_gc) return false;
-            MARK;
             GattReadResult l_grr{ nullptr };
             bool l_ret = GetGattCharacteristicValue(lp_gc, l_grr, ar_dr);
             return l_ret;
@@ -518,18 +523,15 @@ class Discovery
         IAsyncOperation<bool> SetGattCharacteristicValueUWP(GattCharacteristic* ap_gc,
             GattWriteResult& ar_gwr, DataWriter &ar_dw)
         {
-            MARK;
             ar_gwr = co_await ap_gc->WriteValueWithResultAsync(ar_dw.DetachBuffer());
-            MARK;
             if (ar_gwr.Status() != GattCommunicationStatus::Success)
             {
-                std::cerr << "Failed to write Gatt Characteristic due to " << 
-                        to_string(ar_gwr.Status()) << std::endl;
+                std::wcerr << "Failed to write Gatt Characteristic due to " <<
+                        gcs_to_wstring(ar_gwr.Status()) << std::endl;
                 co_return false;
             }
             else
             {
-                std::cout << "OK!" << std::endl;
                 co_return true;
             }
         }
@@ -537,10 +539,9 @@ class Discovery
         bool SetGattCharacteristicValue(GattCharacteristic* ap_gc, GattWriteResult& ar_gwr, DataWriter &ar_dw)
         {
             IAsyncOperation<bool> l_ret = SetGattCharacteristicValueUWP(ap_gc, ar_gwr, ar_dw);
-            MARK;
             if (!l_ret.get())
             {
-                std::cout << "Failed to set gatt svcs characteristic value" << std::endl;
+                std::wcerr << "Failed to set gatt svcs characteristic value" << std::endl;
                 return false;
             }
             else
@@ -550,69 +551,142 @@ class Discovery
         bool setJavaBLECharacteristicValue(JNIEnv* ap_jenv, jstring a_id, jstring a_service, jstring a_characteristic, DataWriter &ar_dw)
         {
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
-            MARK;
             std::wstring l_id = Java_To_WStr(ap_jenv, a_id);
             std::wstring l_service = Java_To_WStr(ap_jenv, a_service);
             std::wstring l_char = Java_To_WStr(ap_jenv, a_characteristic);
 
             if (m_id_to_bd.find(l_id) == m_id_to_bd.end()) return false;
-            MARK;
             Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_bd[l_id]->mp_di;
             if (!lp_di) return false;
-            MARK;
             if (m_id_to_bd[l_id]->m_uuid_to_service.find(l_service) == m_id_to_bd[l_id]->m_uuid_to_service.end()) return false;
             BLEService* lp_bs = m_id_to_bd[l_id]->m_uuid_to_service[l_service];
             if (!lp_bs) return false;
-            MARK;
             if (lp_bs->m_uuid_to_characteristic.find(l_char) == lp_bs->m_uuid_to_characteristic.end()) return false;
             GattCharacteristic* lp_gc = lp_bs->m_uuid_to_characteristic[l_char];
             if (!lp_gc) return false;
-            MARK;
             GattWriteResult l_gwr{ nullptr };
             return SetGattCharacteristicValue(lp_gc, l_gwr, ar_dw);
         }
 
         static void DeviceWatcher_Added(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformation deviceInfo)
         {
-            std::wcout << "In " << __func__ << std::endl;
-            if (!sm_dc) return;
+            if (!smp_dc) return;
             std::wstring l_id(deviceInfo.Id().c_str());
-            sm_dc->add_di(l_id, deviceInfo);
+            smp_dc->add_di(l_id, deviceInfo);
         };
         static void DeviceWatcher_Updated(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformationUpdate deviceInfoUpdate)
         {
-            std::wcout << "In " << __func__ << std::endl;
-            if (!sm_dc) return;
+            if (!smp_dc) return;
             std::wstring l_id(deviceInfoUpdate.Id().c_str());
-            sm_dc->update_di(l_id, deviceInfoUpdate);
+            smp_dc->update_di(l_id, deviceInfoUpdate);
         };
         static void DeviceWatcher_Removed(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformationUpdate deviceInfoUpdate)
         {
-            std::wcout << "In " << __func__ << std::endl;
-            if (!sm_dc) return;
+            if (!smp_dc) return;
             std::wstring l_id(deviceInfoUpdate.Id().c_str());
-            sm_dc->remove_di(l_id);
+            smp_dc->remove_di(l_id);
         };
         static void DeviceWatcher_EnumerationCompleted(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Foundation::IInspectable const&)
         {
-            std::wcout << "In " << __func__ << std::endl;
-            if (!sm_dc) return;
-            sm_dc->signal_discovery_complete();
+            if (!smp_dc) return;
+            smp_dc->signal_discovery_complete();
         };
         static void DeviceWatcher_Stopped(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Foundation::IInspectable const&)
         {
-            std::wcout << "In " << __func__ << std::endl;
-            if (!sm_dc) return;
-            sm_dc->signal_discovery_complete();
+            if (!smp_dc) return;
+            smp_dc->signal_discovery_complete();
         };
+
+        static void Characteristic_ValueChanged(GattCharacteristic const &ar_gc, GattValueChangedEventArgs args)
+        {
+            if (!smp_dc) return;
+            std::wstring l_gc_uuid;
+            guidTowstring(ar_gc.Uuid(), l_gc_uuid);
+
+            smp_dc->signal_characteristic_valuechanged(l_gc_uuid);
+        }
+
+        void signal_characteristic_valuechanged(std::wstring& ar_gc_uuid)
+        {
+            concurrency::critical_section::scoped_lock l_lock(m_lock_std);
+            if (m_uuid_to_notification_token.find(ar_gc_uuid) == m_uuid_to_notification_token.end())
+            {
+                std::wcerr << "Notification token not found" << std::endl;
+                return;
+            }
+            if (m_uuid_to_notification_event.find(ar_gc_uuid) == m_uuid_to_notification_event.end())
+            {
+                std::wcerr << "Notification event not found" << std::endl;
+                return;
+            }
+            m_uuid_to_notification_event[ar_gc_uuid].set();
+        }
+
+        IAsyncOperation<bool> WriteClientCharacteristicConfigurationDescriptorAsync(GattCharacteristic* ap_gc,
+            GattClientCharacteristicConfigurationDescriptorValue a_cccdValue)
+        {
+            GattCommunicationStatus l_gcs = co_await ap_gc->WriteClientCharacteristicConfigurationDescriptorAsync(a_cccdValue);
+            if (l_gcs != GattCommunicationStatus::Success)
+            {
+                std::wcerr << "Failed to write cccd due to " <<
+                    gcs_to_wstring(l_gcs) << std::endl;
+                co_return false;
+            }
+            else
+            {
+                co_return true;
+            }
+        }
+
+        bool watchJavaBLECharacteristicChanges(JNIEnv* ap_jenv, jstring a_id, jstring a_service, jstring a_characteristic)
+        {
+            concurrency::critical_section::scoped_lock l_lock(m_lock_std);
+            std::wstring l_id = Java_To_WStr(ap_jenv, a_id);
+            std::wstring l_service = Java_To_WStr(ap_jenv, a_service);
+            std::wstring l_char = Java_To_WStr(ap_jenv, a_characteristic);
+
+            if (m_id_to_bd.find(l_id) == m_id_to_bd.end()) return false;
+            Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_bd[l_id]->mp_di;
+            if (!lp_di) return false;
+            if (m_id_to_bd[l_id]->m_uuid_to_service.find(l_service) == m_id_to_bd[l_id]->m_uuid_to_service.end()) return false;
+            BLEService* lp_bs = m_id_to_bd[l_id]->m_uuid_to_service[l_service];
+            if (!lp_bs) return false;
+            if (lp_bs->m_uuid_to_characteristic.find(l_char) == lp_bs->m_uuid_to_characteristic.end()) return false;
+            GattCharacteristic* lp_gc = lp_bs->m_uuid_to_characteristic[l_char];
+            if (!lp_gc) return false;
+
+            // If we're already registered, don't do it again!
+            if (m_uuid_to_notification_token.find(l_char) != m_uuid_to_notification_token.end()) return false;
+            if (!WriteClientCharacteristicConfigurationDescriptorAsync(lp_gc, GattClientCharacteristicConfigurationDescriptorValue::Notify).get()) return false;
+            m_uuid_to_notification_characteristic[l_char] = lp_gc;
+            m_uuid_to_notification_token[l_char] = lp_gc->ValueChanged(&Discovery::Characteristic_ValueChanged);
+            m_uuid_to_notification_event[l_char].reset();
+            return true;
+        }
+
+        bool clearJavaBLECharacteristicChanges(JNIEnv* ap_jenv, jstring a_id, jstring a_service, jstring a_characteristic)
+        {
+            std::wstring l_char = Java_To_WStr(ap_jenv, a_characteristic);
+            concurrency::critical_section::scoped_lock l_lock(m_lock_std);
+            m_uuid_to_notification_event[l_char].reset();
+            return true;
+        }
+
+        bool waitForJavaBLECharacteristicChanges(JNIEnv* ap_jenv, jstring a_id, jstring a_service, jstring a_characteristic, jint a_timeout_ms)
+        {
+            std::wstring l_char = Java_To_WStr(ap_jenv, a_characteristic);
+            m_uuid_to_notification_event[l_char].reset();
+            if (m_uuid_to_notification_event[l_char].wait(a_timeout_ms) != 0) return false;
+            return true;
+        }
 };
 
-Discovery *Discovery::sm_dc = NULL;
+Discovery *Discovery::smp_dc = NULL;
 
 JNIEXPORT jobjectArray JNICALL Java_javelin_1test_javelin_listBLEDevices
 (JNIEnv *ap_jenv, jclass)
 {
-	std::cout << "Hello from JNI C++" << std::endl;
+	std::wcout << "javelin starting" << std::endl;
 
     Discovery *lp_dc = Discovery::getDiscovery();
     lp_dc->start_discovery();
@@ -688,6 +762,29 @@ JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_setBLECharacteristicValue
     ap_jenv->ReleaseByteArrayElements(a_value, lp_jbytes, 0);
     return lp_dc->setJavaBLECharacteristicValue(ap_jenv, a_id, a_service, a_characteristic, l_dw);
 }
+
+JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_watchBLECharacteristicChanges
+(JNIEnv* ap_jenv, jclass, jstring a_id, jstring a_service, jstring a_characteristic)
+{
+    Discovery* lp_dc = Discovery::getDiscovery();
+    return lp_dc->watchJavaBLECharacteristicChanges(ap_jenv, a_id, a_service, a_characteristic);
+}
+
+JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_clearBLECharacteristicChanges
+(JNIEnv* ap_jenv, jclass, jstring a_id, jstring a_service, jstring a_characteristic)
+{
+    Discovery* lp_dc = Discovery::getDiscovery();
+    return lp_dc->clearJavaBLECharacteristicChanges(ap_jenv, a_id, a_service, a_characteristic);
+}
+
+JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_waitForBLECharacteristicChanges
+(JNIEnv* ap_jenv, jclass, jstring a_id, jstring a_service, jstring a_characteristic, jint a_timeout_ms)
+{
+    Discovery* lp_dc = Discovery::getDiscovery();
+    return lp_dc->waitForJavaBLECharacteristicChanges(ap_jenv, a_id, a_service, a_characteristic, a_timeout_ms);
+}
+
+
 
 BOOL APIENTRY DllMain(HMODULE /* hModule */, DWORD ul_reason_for_call, LPVOID /* lpReserved */)
 {

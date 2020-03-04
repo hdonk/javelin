@@ -55,6 +55,30 @@ JNIEXPORT jbyteArray JNICALL Java_javelin_1test_javelin_getBLECharacteristicValu
 JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_setBLECharacteristicValue
   (JNIEnv *, jclass, jstring, jstring, jstring, jbyteArray);
 
+/*
+ * Class:     javelin_test_javelin
+ * Method:    watchBLECharacteristicChanges
+ * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
+ */
+JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_watchBLECharacteristicChanges
+  (JNIEnv *, jclass, jstring, jstring, jstring);
+
+/*
+ * Class:     javelin_test_javelin
+ * Method:    clearBLECharacteristicChanges
+ * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
+ */
+JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_clearBLECharacteristicChanges
+  (JNIEnv *, jclass, jstring, jstring, jstring);
+
+/*
+ * Class:     javelin_test_javelin
+ * Method:    waitForBLECharacteristicChanges
+ * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)Z
+ */
+JNIEXPORT jboolean JNICALL Java_javelin_1test_javelin_waitForBLECharacteristicChanges
+  (JNIEnv *, jclass, jstring, jstring, jstring, jint);
+
 #ifdef __cplusplus
 }
 #endif
