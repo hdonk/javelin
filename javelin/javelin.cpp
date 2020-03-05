@@ -164,10 +164,9 @@ class Discovery
 
         ~Discovery()
         {
-            std::map<std::wstring, BLEDevice*>::iterator l_end, l_ptr;
-            
-            concurrency::critical_section::scoped_lock l_lock(m_lock_std);
-
+            MARK;
+            //concurrency::critical_section::scoped_lock l_lock(m_lock_std);
+            MARK;
             if (m_deviceWatcher != nullptr)
             {
                 MARK;
@@ -196,10 +195,13 @@ class Discovery
                 }
             }
 
-            MARK;
-            for (l_end = m_id_to_bd.end(), l_ptr = m_id_to_bd.begin(); l_ptr != l_end; ++l_ptr)
             {
-                delete l_ptr->second;
+                MARK;
+                std::map<std::wstring, BLEDevice*>::iterator l_end, l_ptr;
+                for (l_end = m_id_to_bd.end(), l_ptr = m_id_to_bd.begin(); l_ptr != l_end; ++l_ptr)
+                {
+                    delete l_ptr->second;
+                }
             }
 
             {
