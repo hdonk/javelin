@@ -20,7 +20,6 @@ using namespace Windows::Storage::Streams;
 
 // Utility Functions
 #if defined(_DEBUG)
-#error a
 #define MARK std::wcerr << __func__ << ':' << __LINE__ << std::endl;
 #define DEBUG_TRACE(reason) std::wcerr << __func__ << ':' << __LINE__ << ' ' << reason << std::endl;
 #else
