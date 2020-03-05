@@ -19,8 +19,14 @@ using namespace Windows::Storage::Streams;
 //using namespace Windows::Foundation::Collections::IVectorView;
 
 // Utility Functions
+#if defined(_DEBUG)
+#error a
 #define MARK std::wcerr << __func__ << ':' << __LINE__ << std::endl;
 #define DEBUG_TRACE(reason) std::wcerr << __func__ << ':' << __LINE__ << ' ' << reason << std::endl;
+#else
+#define MARK
+#define DEBUG_TRACE(reason)
+#endif
 
 std::wstring Java_To_WStr(JNIEnv* env, jstring string)
 {
@@ -159,6 +165,8 @@ class Discovery
             , m_id_to_bd()
             , m_discovery_complete()
         {
+            std::cout << "javelin starting" << std::endl;
+
             m_discovery_complete.reset();
         };
 
@@ -218,7 +226,7 @@ class Discovery
                 }
             }
 
-            std::wcout << "javelin finished" << std::endl;
+            std::cout << "javelin finished" << std::endl;
         }
 
         static void releaseDiscovery()
@@ -815,8 +823,6 @@ Discovery *Discovery::smp_dc = NULL;
 JNIEXPORT jobjectArray JNICALL Java_javelin_javelin_listBLEDevices
 (JNIEnv *ap_jenv, jclass)
 {
-	std::wcout << "javelin starting" << std::endl;
-
     Discovery *lp_dc = Discovery::getDiscovery();
     lp_dc->start_discovery(ap_jenv);
 
