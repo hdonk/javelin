@@ -96,13 +96,18 @@ class BLEService
         {
             {
                 std::map < std::wstring, GattCharacteristic *>::iterator l_ptr, l_end;
+                
                 for (l_end = m_uuid_to_characteristic.end(), l_ptr = m_uuid_to_characteristic.begin(); l_ptr != l_end; ++l_ptr)
                 {
+                    MARK;
                     delete l_ptr->second;
                 }
             }
-
-            delete mp_ds;
+            MARK;
+            mp_ds->Session().MaintainConnection(false);
+            MARK;
+            //delete mp_ds;
+            MARK;
         }
 };
 
@@ -122,17 +127,23 @@ class BLEDevice
         ~BLEDevice()
         {
             {
+                MARK;
                 std::map < std::wstring, BLEService *>::iterator l_ptr, l_end;
                 for (l_end = m_uuid_to_service.end(), l_ptr = m_uuid_to_service.begin(); l_ptr != l_end; ++l_ptr)
                 {
+                    MARK;
                     delete l_ptr->second;
                 }
             }
+            MARK;
             if (mp_bled)
             {
-                mp_bled->Close();
+                MARK;
+  //              mp_bled->Close();
+                MARK;
                 delete mp_bled;
             }
+            MARK;
             delete mp_di;
         }
 };
@@ -188,7 +199,9 @@ class Discovery
                 m_deviceWatcher.Stop();
                 m_deviceWatcher = nullptr;
             }
-
+            std::cout << "javelin finished" << std::endl;
+            return;
+#if 0
             {
                 MARK;
                 std::map < std::wstring, event_token>::iterator l_ptr, l_end;
@@ -226,6 +239,7 @@ class Discovery
             }
 
             std::cout << "javelin finished" << std::endl;
+#endif
         }
 
         static void releaseDiscovery()
@@ -240,6 +254,7 @@ class Discovery
         
         void add_di(std::wstring &ar_id, Windows::Devices::Enumeration::DeviceInformation ar_di)
         {
+            MARK;
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
             BLEDevice *lp_bd = ::new BLEDevice();
             lp_bd->mp_di = ::new Windows::Devices::Enumeration::DeviceInformation(ar_di);
@@ -250,6 +265,7 @@ class Discovery
 
         void update_di(std::wstring& ar_id, Windows::Devices::Enumeration::DeviceInformationUpdate ar_diu)
         {
+            MARK;
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
             m_id_to_bd[ar_id]->mp_di->Update(ar_diu);
             Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_bd[ar_id]->mp_di;
@@ -259,6 +275,7 @@ class Discovery
 
         void remove_di(std::wstring& ar_id)
         {
+            MARK;
             concurrency::critical_section::scoped_lock l_lock(m_lock_std);
             Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_bd[ar_id]->mp_di;
 //            DEBUG_TRACE("-- Deleting");
@@ -619,35 +636,41 @@ class Discovery
 
         static void DeviceWatcher_Added(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformation deviceInfo)
         {
+            MARK;
             if (!smp_dc) return;
             std::wstring l_id(deviceInfo.Id().c_str());
             smp_dc->add_di(l_id, deviceInfo);
         };
         static void DeviceWatcher_Updated(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformationUpdate deviceInfoUpdate)
         {
+            MARK;
             if (!smp_dc) return;
             std::wstring l_id(deviceInfoUpdate.Id().c_str());
             smp_dc->update_di(l_id, deviceInfoUpdate);
         };
         static void DeviceWatcher_Removed(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Devices::Enumeration::DeviceInformationUpdate deviceInfoUpdate)
         {
+            MARK;
             if (!smp_dc) return;
             std::wstring l_id(deviceInfoUpdate.Id().c_str());
             smp_dc->remove_di(l_id);
         };
         static void DeviceWatcher_EnumerationCompleted(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Foundation::IInspectable const&)
         {
+            MARK;
             if (!smp_dc) return;
             smp_dc->signal_discovery_complete();
         };
         static void DeviceWatcher_Stopped(Windows::Devices::Enumeration::DeviceWatcher sender, Windows::Foundation::IInspectable const&)
         {
+            MARK;
             if (!smp_dc) return;
             smp_dc->signal_discovery_complete();
         };
 
         static void Characteristic_ValueChanged(GattCharacteristic const &ar_gc, GattValueChangedEventArgs a_args)
         {
+            MARK;
             if (!smp_dc) return;
             std::wstring l_gc_uuid;
             guidTowstring(ar_gc.Uuid(), l_gc_uuid);
