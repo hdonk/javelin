@@ -79,6 +79,14 @@ JNIEXPORT jboolean JNICALL Java_javelin_javelin_clearBLECharacteristicChanges
 JNIEXPORT jbyteArray JNICALL Java_javelin_javelin_waitForBLECharacteristicChanges
   (JNIEnv *, jclass, jstring, jstring, jstring, jint);
 
+/*
+ * Class:     javelin_javelin
+ * Method:    unWatchBLECharacteristicChanges
+ * Signature: (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
+ */
+JNIEXPORT jboolean JNICALL Java_javelin_javelin_unWatchBLECharacteristicChanges
+  (JNIEnv *, jclass, jstring, jstring, jstring);
+
 #ifdef __cplusplus
 }
 #endif

@@ -590,14 +590,17 @@ class Discovery
             GattWriteResult& ar_gwr, DataWriter &ar_dw)
         {
             ar_gwr = co_await ap_gc->WriteValueWithResultAsync(ar_dw.DetachBuffer());
+            MARK;
             if (ar_gwr.Status() != GattCommunicationStatus::Success)
             {
                 std::wcerr << "Failed to write Gatt Characteristic due to " <<
                         gcs_to_wstring(ar_gwr.Status()) << std::endl;
+                MARK;
                 co_return false;
             }
             else
             {
+                MARK;
                 co_return true;
             }
         }
@@ -622,14 +625,20 @@ class Discovery
             std::wstring l_char = Java_To_WStr(ap_jenv, a_characteristic);
 
             if (m_id_to_bd.find(l_id) == m_id_to_bd.end()) return false;
+            MARK;
             Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_bd[l_id]->mp_di;
             if (!lp_di) return false;
+            MARK;
             if (m_id_to_bd[l_id]->m_uuid_to_service.find(l_service) == m_id_to_bd[l_id]->m_uuid_to_service.end()) return false;
+            MARK;
             BLEService* lp_bs = m_id_to_bd[l_id]->m_uuid_to_service[l_service];
             if (!lp_bs) return false;
+            MARK;
             if (lp_bs->m_uuid_to_characteristic.find(l_char) == lp_bs->m_uuid_to_characteristic.end()) return false;
+            MARK;
             GattCharacteristic* lp_gc = lp_bs->m_uuid_to_characteristic[l_char];
             if (!lp_gc) return false;
+            MARK;
             GattWriteResult l_gwr{ nullptr };
             return SetGattCharacteristicValue(lp_gc, l_gwr, ar_dw);
         }
@@ -702,6 +711,7 @@ class Discovery
             for (int i = 0; i < l_len; ++i)
             {
                 (*lp_bytes)+=ar_dr.ReadByte();
+//                if (i == 0) std::wcerr << "Got byte 0 -> " << (int)lp_bytes->at(0) << std::endl;
             }
             /*
             MARK;
@@ -796,6 +806,7 @@ class Discovery
                 DEBUG_TRACE("Failed to write ccd for " << l_id << '/' << l_service << '/' << l_char);
                 return false;
             }
+            DEBUG_TRACE("Registered " << l_char);
             m_uuid_to_notification_characteristic[l_char] = lp_gc;
             m_uuid_to_notification_token[l_char] = lp_gc->ValueChanged(&Discovery::Characteristic_ValueChanged);
             return true;
@@ -812,7 +823,7 @@ class Discovery
         jbyteArray waitForJavaBLECharacteristicChanges(JNIEnv* ap_jenv, jstring a_id, jstring a_service, jstring a_characteristic, jint a_timeout_ms)
         {
             std::wstring l_char = Java_To_WStr(ap_jenv, a_characteristic);
-            if (m_uuid_to_notification_event[l_char].wait(a_timeout_ms) != 0) return false;
+            if (m_uuid_to_notification_event[l_char].wait(a_timeout_ms) != 0) return NULL;
             m_uuid_to_notification_event[l_char].reset();
 
             std::string *lp_string = m_uuid_to_changed_value[l_char].front();
@@ -821,9 +832,9 @@ class Discovery
             MARK;
             int l_len = (int)lp_string->size();
             jbyte* lp_jbytes = ::new jbyte[lp_string->size()];
-            DEBUG_TRACE("Created jbyte array size " << l_len);
+            DEBUG_TRACE("Created jbyte array size " << l_len << std::endl);
             MARK;
-            DEBUG_TRACE("Create jbyteArray on " << ap_jenv);
+            DEBUG_TRACE("Create jbyteArray on " << ap_jenv << std::endl);
             jbyteArray l_jba = ap_jenv->NewByteArray(l_len);
             MARK;
             for (int i = 0; i < l_len; ++i)
@@ -838,6 +849,79 @@ class Discovery
             MARK;
             return l_jba;
         }
+
+        bool unWatchJavaBLECharacteristicChanges(JNIEnv* ap_jenv, jstring a_id, jstring a_service, jstring a_characteristic)
+        {
+            concurrency::critical_section::scoped_lock l_lock(m_lock_std);
+            std::wstring l_id = Java_To_WStr(ap_jenv, a_id);
+            std::wstring l_service = Java_To_WStr(ap_jenv, a_service);
+            std::wstring l_char = Java_To_WStr(ap_jenv, a_characteristic);
+            MARK;
+            if (m_id_to_bd.find(l_id) == m_id_to_bd.end())
+            {
+                DEBUG_TRACE("Failed to find device " << l_id);
+                return false;
+            }
+            Windows::Devices::Enumeration::DeviceInformation* lp_di = m_id_to_bd[l_id]->mp_di;
+            if (!lp_di)
+            {
+                DEBUG_TRACE("No device information for " << l_id);
+                return false;
+            }
+            if (m_id_to_bd[l_id]->m_uuid_to_service.find(l_service) == m_id_to_bd[l_id]->m_uuid_to_service.end())
+            {
+                DEBUG_TRACE("No service information for " << l_id << '/' << l_service);
+                return false;
+            }
+            BLEService* lp_bs = m_id_to_bd[l_id]->m_uuid_to_service[l_service];
+            if (!lp_bs)
+            {
+                DEBUG_TRACE("No BLE service for " << l_id << '/' << l_service);
+                return false;
+            }
+            if (lp_bs->m_uuid_to_characteristic.find(l_char) == lp_bs->m_uuid_to_characteristic.end())
+            {
+                DEBUG_TRACE("No characteristic for " << l_id << '/' << l_service << '/' << l_char);
+                return false;
+            }
+            GattCharacteristic* lp_gc = lp_bs->m_uuid_to_characteristic[l_char];
+            if (!lp_gc)
+            {
+                DEBUG_TRACE("No Gatt characteristic for " << l_id << '/' << l_service << '/' << l_char);
+                return false;
+            }
+
+            // If we're not already registered, can't unwatch!
+            if (m_uuid_to_notification_token.find(l_char) == m_uuid_to_notification_token.end())
+            {
+                DEBUG_TRACE("Not registered for changes on " << l_id << '/' << l_service << '/' << l_char);
+                return true;
+            }
+            if (!WriteClientCharacteristicConfigurationDescriptorAsync(lp_gc, GattClientCharacteristicConfigurationDescriptorValue::None).get())
+            {
+                DEBUG_TRACE("Failed to write ccd for " << l_id << '/' << l_service << '/' << l_char);
+                return false;
+            }
+            DEBUG_TRACE("Unregistered " << l_id << '/' << l_service << '/' << l_char);
+            m_uuid_to_notification_characteristic.erase(l_char);
+
+            lp_gc->ValueChanged(m_uuid_to_notification_token[l_char]);
+            m_uuid_to_notification_token.erase(l_char);
+
+            while (!m_uuid_to_changed_value[l_char].empty())
+            {
+                delete m_uuid_to_changed_value[l_char].back();
+                m_uuid_to_changed_value[l_char].pop();
+            }
+            m_uuid_to_changed_value.erase(l_char);
+            MARK;
+            m_uuid_to_notification_event[l_char].reset();
+            m_uuid_to_notification_event.erase(l_char);
+            MARK;
+
+            return true;
+        }
+
 };
 
 Discovery *Discovery::smp_dc = NULL;
@@ -917,6 +1001,7 @@ JNIEXPORT jboolean JNICALL Java_javelin_javelin_setBLECharacteristicValue
     for(int i=0; i<ap_jenv->GetArrayLength(a_value); ++i)
         l_dw.WriteByte(lp_jbytes[i]);
     ap_jenv->ReleaseByteArrayElements(a_value, lp_jbytes, 0);
+    MARK;
     return lp_dc->setJavaBLECharacteristicValue(ap_jenv, a_id, a_service, a_characteristic, l_dw);
 }
 
@@ -939,6 +1024,14 @@ JNIEXPORT jbyteArray JNICALL Java_javelin_javelin_waitForBLECharacteristicChange
 {
     Discovery* lp_dc = Discovery::getDiscovery();
     return lp_dc->waitForJavaBLECharacteristicChanges(ap_jenv, a_id, a_service, a_characteristic, a_timeout_ms);
+}
+
+JNIEXPORT jboolean JNICALL Java_javelin_javelin_unWatchBLECharacteristicChanges
+(JNIEnv* ap_jenv, jclass, jstring a_id, jstring a_service, jstring a_characteristic)
+{
+    Discovery* lp_dc = Discovery::getDiscovery();
+    MARK;
+    return lp_dc->unWatchJavaBLECharacteristicChanges(ap_jenv, a_id, a_service, a_characteristic);
 }
 
 
